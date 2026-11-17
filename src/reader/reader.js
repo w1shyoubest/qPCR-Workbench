@@ -277,10 +277,13 @@
   const refLine = { id: 'refLine', afterDraw(c) { const v = c.options.plugins.refLine && c.options.plugins.refLine.value; if (v == null) return; const y = c.scales.y.getPixelForValue(v), g = c.ctx; g.save(); g.strokeStyle = cv('--ink'); g.setLineDash([4, 3]); g.beginPath(); g.moveTo(c.chartArea.left, y); g.lineTo(c.chartArea.right, y); g.stroke(); g.restore(); } };
   function barChart(id, labels, data, errors, colors, title, ref) {
     const muted = cv('--muted'), line = cv('--line');
+    // keep error bars inside the plot: the axis spans every value ± its SD (and the reference line)
+    const ends = data.flatMap((v, i) => { const e = errors && errors[i] != null ? errors[i] : 0; return v == null ? [] : [v - e, v + e]; }).concat(ref != null ? [ref] : []);
+    const lo = ends.length ? Math.min(...ends) : 0, hi = ends.length ? Math.max(...ends) : 1, padY = (hi - lo || 1) * 0.06;
     if (charts[id]) charts[id].destroy();
     charts[id] = new Chart($('#' + id), { type: 'bar', data: { labels, datasets: [{ data, errors, backgroundColor: colors.map(c => c + 'CC'), borderColor: colors, borderWidth: 1 }] }, plugins: [errorBars, refLine],
       options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, refLine: { value: ref }, tooltip: { callbacks: { label: c => `${c.parsed.y.toFixed(2)}${errors && errors[c.dataIndex] != null ? ' ± ' + errors[c.dataIndex].toFixed(2) : ''}` } } },
-        scales: { x: { ticks: { color: muted, autoSkip: false, maxRotation: 60, minRotation: 30 }, grid: { display: false } }, y: { title: { display: true, text: title, color: muted }, ticks: { color: muted }, grid: { color: line } } } } });
+        scales: { x: { ticks: { color: muted, autoSkip: false, maxRotation: 60, minRotation: 30 }, grid: { display: false } }, y: { suggestedMin: Math.min(0, lo - padY), suggestedMax: Math.max(0, hi + padY), title: { display: true, text: title, color: muted }, ticks: { color: muted }, grid: { color: line } } } } });
   }
 
   function renderSummary(P) {
@@ -388,9 +391,15 @@
   }
 
   const resBox = RICH.setupRich($('#resbox'), { label: 'Results and conclusions', outline: OUTLINE_RESULTS,
-    set: html => { const P = cur(), d = P && designFor(P); if (d && !saveDesignField(d.id, 'results', html)) $('#rsaved').textContent = 'Could not save: browser storage is full or blocked.'; else if (d) { $('#rsaved').textContent = 'Saved with the design “' + d.name + '”.'; } } });
+    set: html => { const P = cur(); if (!P) return; let d = designFor(P);
+      if (!d) { if (!RICH.sanitize(html).replace(/<[^>]+>/g, '').trim()) return; d = createDesign(P, true); if (!d) return; renderDesignHead(P); }
+      $('#rsaved').textContent = saveDesignField(d.id, 'results', html) ? 'Saved automatically with the design “' + d.name + '”.' : 'Could not save: browser storage is full or blocked.'; } });
 
-  function renderDesign(P) {
+  function renderDesign(P) { renderDesignHead(P); const d = designFor(P);
+    if (document.activeElement !== resBox.ed) resBox.load(d ? d.results || '' : '');
+    $('#rsaved').textContent = d ? 'Saved automatically with the design “' + d.name + '”.' : 'Type here; a design record for this run is created automatically to keep your results.';
+  }
+  function renderDesignHead(P) {
     const d = designFor(P), ps = dstate().plates;
     $('#dlink').innerHTML = `<option value="">— none —</option>` + ps.map(p => `<option value="${esc(p.id)}" ${d && d.id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
     $('#dnew').hidden = !!d; $('#dedit').hidden = !d;
@@ -400,15 +409,12 @@
     const html = d ? RICH.sanitize(d.design || '') : '';
     $('#ddesign').innerHTML = html || `<p class="hint">${d ? 'This design has no notes yet. Add the purpose, samples and experiment in the Plate Designer.' : ps.length
       ? 'No design is linked to this run. Pick one above, or create one from this run.' : 'No plate designs in this browser yet. Open a project file (.qpcrplan.json), or create a design from this run.'}</p>`;
-    // results box: only editable when there is a design to keep them in
-    resBox.ed.contentEditable = d ? 'true' : 'false';
-    $('#resbox').classList.toggle('off', !d);
-    if (document.activeElement !== resBox.ed) resBox.load(d ? d.results || '' : '');
-    $('#rsaved').textContent = d ? 'Saved automatically with the design “' + d.name + '”.' : 'Link or create a design above to write results here.';
   }
   $('#dlink').addEventListener('change', e => { const P = cur(); link(P, e.target.value); renderDesign(P); });
-  $('#dnew').addEventListener('click', () => {
-    const P = cur(), s = dstate(), wells = {};
+  $('#dnew').addEventListener('click', () => { const P = cur(), p = createDesign(P, false); if (!p) return; renderDesign(P); alertStatus('Created the design “' + p.name + '”. Fill in the purpose and samples in the Plate Designer.'); });
+  // a design record built from the run's own plate map; auto = made only to hold results typed before any design was linked
+  function createDesign(P, auto) {
+    const s = dstate(), wells = {};
     P.data.wells.forEach(w => { const o = wells[w.pos] = wells[w.pos] || { sample: w.sample || '' };
       if (w.target) o.target = o.target && o.target !== w.target ? o.target + ', ' + w.target : w.target;
       if (QPCR.isNTC(w)) o.task = 'NTC'; else if (w.task) o.task = String(w.task).toUpperCase(); });
@@ -416,9 +422,10 @@
     const p = { id: Math.random().toString(36).slice(2, 9), name: P.name, fmt: P.data.ncol > 12 ? 384 : 96, wells,
       meta: { project: '', date, operator: '', instrument: 'QuantStudio 5', block: P.data.ncol > 12 ? '384-well' : '96-well', chemistry: '', runFile: P.file, expType: i.type || '', passive: P.data.passive || '' },
       mix: { vol: '', n: '', over: 10, comps: [] }, cyc: [], log: [], design: OUTLINE_DESIGN, results: '' };
-    s.plates.push(p); if (!put(DSTORE, s)) return alertStatus('Could not save: browser storage is full or blocked.');
-    link(P, p.id); renderDesign(P); alertStatus('Created the design “' + p.name + '”. Fill in the purpose and samples in the Plate Designer.');
-  });
+    if (auto) p.auto = true;
+    s.plates.push(p); if (!put(DSTORE, s)) { alertStatus('Could not save: browser storage is full or blocked.'); return null; }
+    link(P, p.id); return p;
+  }
   function alertStatus(t) { const el = $('#dstatus'); el.textContent = t; clearTimeout(alertStatus.t); alertStatus.t = setTimeout(() => el.textContent = '', 6000); }
   $('#dopen').addEventListener('click', () => $('#dprojf').click());
   $('#dprojf').addEventListener('change', async e => {
@@ -429,6 +436,14 @@
       const clash = d.plates.filter(p => have.has(p.id));
       const replace = clash.length ? confirm(`${clash.length} of these plates are already in this browser.\n\nOK = use the versions in “${f.name}”\nCancel = keep the versions in this browser`) : false;
       let added = 0; d.plates.forEach(p => { if (!have.has(p.id)) { s.plates.push(p); added++; } else if (replace) s.plates[have.get(p.id)] = p; });
+      // runs that only had an automatic design now get the real one from the file, keeping results typed so far
+      const links = store(LSTORE, {}); let moved = 0;
+      plates.forEach(P => { const a = s.plates.find(p => p.id === links[P.file]); if (!a || !a.auto) return;
+        const keys = [norm(P.file), norm(P.data.info && P.data.info.name)].filter(Boolean);
+        const real = s.plates.find(p => !p.auto && (keys.includes(norm(p.name)) || keys.includes(norm(p.meta && p.meta.runFile)))); if (!real) return;
+        if (RICH.sanitize(a.results || '')) real.results = (RICH.sanitize(real.results || '') ? real.results : '') + a.results;
+        s.plates.splice(s.plates.indexOf(a), 1); links[P.file] = real.id; moved++; });
+      put(LSTORE, links);
       if (!put(DSTORE, s)) throw new Error('browser storage is full or blocked');
       render(); alertStatus(`Opened ${f.name}: ${added} plate design${added === 1 ? '' : 's'} added${clash.length ? `, ${clash.length} ${replace ? 'replaced' : 'kept as they were'}` : ''}.`);
     } catch (err) { alertStatus('Could not open ' + f.name + ': ' + (err.message || err)); }
