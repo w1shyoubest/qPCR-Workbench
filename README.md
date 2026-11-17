@@ -47,9 +47,9 @@ You can keep several plates in one project. Work autosaves in the browser, and *
 
 **Design and results report:**
 
-- When a run is opened, the Reader finds its plate design (same name as the file or the design's run file name) and shows the experiment details and design sheet above the data. Choose another design from the list, open a project file, or **Create a design from this run** if there is none yet; **Edit in Plate Designer** jumps to it.
+- When a run is opened, the Reader finds its plate design (same name as the file or the design's run file name) and shows, above the data: the experiment details, the design sheet, the **designed plate map** (colour by sample, target, group or task), and a **design and results by sample** table that puts each designed sample × target next to this run's amplified wells, mean Ct and SD (matched by well position, so renamed samples or targets still line up). Hovering a well in the run's plate layout also shows its design group and note. Choose another design from the list, open a project file, or **Create a design from this run** if there is none yet; **Edit in Plate Designer** jumps to it.
 - **Results and conclusions** sits below the data: the same rich-text box as the design sheet (tables, Markdown, Ca²⁺-style symbols). It is saved with the design, so it also appears in the Plate Designer's project file.
-- **Report** → Word (.docx) or PDF, for this run or all open runs: design, plate layout with Cts, curves, replicate summary, ΔCt table and chart, QC flags, results and conclusions, and the log. It uses the current threshold, baseline, exclusions and plot.
+- **Report** → Word (.docx), PDF, or **Notes (.md)** (text only, to paste into a lab notebook), for this run or all open runs: design sheet, designed plate map, design-and-results table, plate layout with Cts, curves, replicate summary, ΔCt table and chart, QC flags, results and conclusions, and the log. It uses the current threshold, baseline, exclusions and plot.
 
 **Data features:**
 
@@ -75,7 +75,8 @@ src/
   reader/                reader.html (page) + reader.js (interface)
   designer/              designer.html (page) + designer.js (interface)
   shared/core.js         QuantStudio parsing and analysis, used by both tools
-  shared/rich.js         rich-text boxes (Markdown, symbols, safe HTML) and Word/PDF reports, used by both tools
+  shared/rich.js         rich-text boxes (Markdown, symbols, safe HTML) and Word/PDF/Markdown reports, used by both tools
+  shared/plate.js        plate-map drawing for designs, used by both tools
   static/                service worker, web app manifest and icons, copied to docs/
   vendor/                pinned third-party libraries
 ```

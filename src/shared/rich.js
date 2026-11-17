@@ -348,5 +348,62 @@
     images.forEach(im => z.file('word/media/' + im.name, im.blob));
     return z.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   }
-  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS };
+
+  // ---------- report → Markdown notes (text only; figures stay in the Word/PDF report) ----------
+  function htmlToMd(html) {
+    const d = document.createElement('div'); d.innerHTML = html;
+    const sup = t => [...t].every(c => SUPC[c]) ? [...t].map(c => SUPC[c]).join('') : '^' + t;
+    const sub = t => [...t].every(c => SUBC[c]) ? [...t].map(c => SUBC[c]).join('') : '_' + t;
+    function inl(n) {
+      let o = '';
+      for (const c of n.childNodes) {
+        if (c.nodeType === 3) { o += c.nodeValue.replace(/\s+/g, ' '); continue; }
+        if (c.nodeType !== 1) continue;
+        const t = c.tagName, x = inl(c);
+        if (t === 'BR') o += '  \n';
+        else if (t === 'IMG') o += '*(figure: see the Word or PDF report)*';
+        else if (/^(STRONG|B)$/.test(t)) o += x.trim() ? `**${x.trim()}** ` : '';
+        else if (/^(EM|I)$/.test(t)) o += x.trim() ? `*${x.trim()}* ` : '';
+        else if (t === 'CODE') o += '`' + x + '`';
+        else if (t === 'SUP') o += sup(x);
+        else if (t === 'SUB') o += sub(x);
+        else if (t === 'S') o += '~~' + x + '~~';
+        else if (t === 'A') o += `[${x}](${c.getAttribute('href') || ''})`;
+        else o += x;
+      }
+      return o.replace(/\*\* ([.,;:)])/g, '**$1').replace(/\* ([.,;:)])/g, '*$1');
+    }
+    const cell = c => inl(c).replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|').trim();
+    function blk(n, depth) {
+      const out = [];
+      for (const c of n.childNodes) {
+        if (c.nodeType === 3) { if (c.nodeValue.trim()) out.push(c.nodeValue.trim()); continue; }
+        if (c.nodeType !== 1) continue;
+        const t = c.tagName;
+        if (/^H[1-6]$/.test(t)) out.push('#'.repeat(+t[1]) + ' ' + inl(c).trim());
+        else if (t === 'P') { const x = inl(c).trim(); if (x) out.push(x); }
+        else if (t === 'DIV' || t === 'SECTION') out.push(...blk(c, depth));
+        else if (t === 'HR') out.push('---');
+        else if (t === 'BLOCKQUOTE') out.push(inl(c).trim().split('\n').map(l => '> ' + l).join('\n'));
+        else if (t === 'UL' || t === 'OL') {
+          const lines = []; let k = 1;
+          for (const li of c.children) { if (li.tagName !== 'LI') continue;
+            const head = document.createElement('span'), nested = [];
+            for (const x of [...li.childNodes]) { if (x.nodeType === 1 && /^(UL|OL)$/.test(x.tagName)) nested.push(x); else head.appendChild(x.cloneNode(true)); }
+            lines.push('  '.repeat(depth) + (t === 'OL' ? (k++) + '. ' : '- ') + inl(head).trim());
+            nested.forEach(x => { const w = document.createElement('div'); w.appendChild(x.cloneNode(true)); lines.push(blk(w, depth + 1).join('\n')); });
+          }
+          out.push(lines.join('\n'));
+        } else if (t === 'TABLE') {
+          const rows = [...c.rows].map(r => [...r.cells].map(cell)); if (!rows.length) continue;
+          const n = Math.max(...rows.map(r => r.length)), pad = r => r.concat(Array(n - r.length).fill(''));
+          const head = c.tHead ? pad(rows.shift()) : Array(n).fill(' ');
+          out.push(['| ' + head.join(' | ') + ' |', '|' + ' --- |'.repeat(n), ...rows.map(r => '| ' + pad(r).join(' | ') + ' |')].join('\n'));
+        } else { const x = inl(c).trim(); if (x) out.push(x); }
+      }
+      return out;
+    }
+    return blk(d, 0).join('\n\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  }
+  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd };
 })();

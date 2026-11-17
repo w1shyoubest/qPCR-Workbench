@@ -73,6 +73,10 @@ td.small{font-size:13px;color:var(--muted)}
 .dhead a{color:var(--accent);font-size:13px}
 #dstatus{color:var(--muted);font-size:13px}
 table.kv{width:auto;margin:0 0 10px}table.kv th{padding-right:18px}
+h3.sub{font-size:15px;margin:22px 0 8px}
+#dplate{overflow-x:auto;background:var(--panel);border-radius:10px;padding:10px;max-width:900px}#dplate svg{display:block;width:100%;height:auto}
+.sq{display:inline-block;width:14px;height:4px;background:var(--c);margin-right:5px;vertical-align:2px;border-radius:2px}
+.emptyd{background:var(--warnbg);color:var(--warn);border-radius:8px;padding:8px 12px}
 .design-view{border-left:3px solid var(--accent);padding:2px 0 2px 16px}
 .richbox{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .richbox .tb{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--panel);border-radius:10px 10px 0 0;position:sticky;top:0;z-index:1}
@@ -131,6 +135,15 @@ table.kv{width:auto;margin:0 0 10px}table.kv th{padding-right:18px}
   </div>
   <div id="dmeta"></div>
   <div id="ddesign" class="rich design-view"></div>
+  <div id="dplatebox" hidden>
+    <h3 class="sub">Designed plate map</h3>
+    <div class="row"><span class="hint">Color by</span><span id="dcolor"><button data-dc="sample">Sample</button><button data-dc="target">Target</button><button data-dc="group">Group</button><button data-dc="task">Task</button></span></div>
+    <div id="dplate"></div>
+    <div class="legend" id="dlegend"></div>
+    <h3 class="sub">Design and results by sample</h3>
+    <p class="hint" id="dvrnote" style="margin-top:-4px"></p>
+    <div class="tablewrap" id="dvr"></div>
+  </div>
 
   <h2>Data</h2>
 
@@ -192,10 +205,10 @@ table.kv{width:auto;margin:0 0 10px}table.kv th{padding-right:18px}
   <div class="richbox" id="resbox" data-rich="results" data-ph="What the data show, a summary, and your conclusion. Markdown and $\text{Ca}^{2+}$-style symbols work."></div>
 
   <h2>Report</h2>
-  <p class="hint" style="margin-top:-6px">Design, plate layout, curves, Ct summary, ΔCt, QC flags, your results and the log, in one document. Uses the current threshold, baseline, exclusions and plot.</p>
+  <p class="hint" style="margin-top:-6px">Design sheet, designed plate map, design-and-results table, plate layout with Cts, curves, Ct summary, ΔCt, QC flags, your results and the log, in one document. Uses the current threshold, baseline, exclusions and plot.</p>
   <div class="row">
     <select id="rscope" aria-label="Report scope"><option value="this">This run</option><option value="all">All open runs</option></select>
-    <button id="rdocx">Word (.docx)</button><button id="rpdf">PDF</button>
+    <button id="rdocx">Word (.docx)</button><button id="rpdf">PDF</button><button id="rmd" title="Text notes in Markdown, to paste into Google Docs, Notion or a lab notebook">Notes (.md)</button>
     <button id="xproj" title="All plate designs with their results, to reopen in the Plate Designer or another browser">Save project file</button>
   </div>
 
@@ -230,13 +243,14 @@ table.kv{width:auto;margin:0 0 10px}table.kv th{padding-right:18px}
   </section>
 </div>
 
-<footer>qPCR Workbench v2.4.1 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
+<footer>qPCR Workbench v2.5.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>
 <script>/*CHARTJS*/</script>
 <script>/*CORE*/</script>
 <script>/*RICH*/</script>
+<script>/*PLATE*/</script>
 <script>/*READER*/</script>
 <script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>

@@ -87,7 +87,7 @@
   }
 
   // =================== single plate ===================
-  function renderPlate(P) { renderInfo(P); renderDesign(P); renderSettings(P); renderLayout(P); renderFilters(P); renderChart(P); renderQC(P); renderDelta(P); renderSummary(P); renderWells(P); }
+  function renderPlate(P) { renderInfo(P); const dd = designFor(P); P._dw = dd && dd.wells; renderDesign(P); renderSettings(P); renderLayout(P); renderFilters(P); renderChart(P); renderQC(P); renderDelta(P); renderSummary(P); renderWells(P); }
 
   function runText(P) {
     const i = P.data.info || {};
@@ -134,7 +134,8 @@
       const pos = ROWL[i] + j, ws = byPos[pos], cx = pad + (j - 1) * cell + cell / 2, cy = pad + i * cell + cell / 2, r = cell / 2 - 3;
       if (!ws) { s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${muted}" stroke-opacity=".35"/>`; continue; }
       const w = ws[0], col = tColor(P, w.target), ntc = QPCR.isNTC(w), exc = ws.every(x => x.excluded), flag = ws.some(x => x.flags.length), isSel = P.sel.has(pos);
-      const tip = ws.map(x => `${x.pos} · ${x.sample} · ${x.target} · Ct ${x.ct == null ? 'Undetermined' : x.ct.toFixed(2)}${x.flags.length ? ' · ' + x.flags.join('; ') : ''}${x.excluded ? ' · excluded' : ''}`).join('\n');
+      const dw = P._dw && P._dw[pos], dtip = dw ? `\nDesign: ${[dw.sample, dw.group, dw.note].filter(Boolean).join(' · ')}` : '';
+      const tip = dtip.slice(1) + (dtip ? '\n' : '') + ws.map(x => `${x.pos} · ${x.sample} · ${x.target} · Ct ${x.ct == null ? 'Undetermined' : x.ct.toFixed(2)}${x.flags.length ? ' · ' + x.flags.join('; ') : ''}${x.excluded ? ' · excluded' : ''}`).join('\n');
       s += `<g class="well" data-pos="${pos}" style="cursor:pointer"><title>${esc(tip)}</title>`;
       if (isSel && !forExport) s += `<rect x="${cx - cell / 2 + 1}" y="${cy - cell / 2 + 1}" width="${cell - 2}" height="${cell - 2}" rx="6" fill="${sel}" fill-opacity=".12" stroke="${sel}" stroke-width="2"/>`;
       s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${exc ? muted : ntc ? bg : col}" fill-opacity="${exc ? .15 : ntc ? 1 : .18}" stroke="${exc ? muted : col}" stroke-width="1.5" ${ntc ? 'stroke-dasharray="4 3"' : ''}/>`;
@@ -401,15 +402,59 @@
   }
   function renderDesignHead(P) {
     const d = designFor(P), ps = dstate().plates;
-    $('#dlink').innerHTML = `<option value="">— none —</option>` + ps.map(p => `<option value="${esc(p.id)}" ${d && d.id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    $('#dlink').innerHTML = `<option value="">— none —</option>` + ps.map(p => `<option value="${esc(p.id)}" ${d && d.id === p.id ? 'selected' : ''}>${esc(p.name)}${p.auto ? ' (made from this run)' : ''}${hasText(p.design) ? '' : ' · no design notes'}</option>`).join('');
     $('#dnew').hidden = !!d; $('#dedit').hidden = !d;
     if (d) $('#dedit').href = './designer.html#plate=' + encodeURIComponent(d.id);
     const meta = d ? META.map(([k, lab]) => [lab, d.meta && d.meta[k]]).filter(([, v]) => v) : [];
     $('#dmeta').innerHTML = meta.length ? '<table class="kv"><tbody>' + meta.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('') + '</tbody></table>' : '';
-    const html = d ? RICH.sanitize(d.design || '') : '';
-    $('#ddesign').innerHTML = html || `<p class="hint">${d ? 'This design has no notes yet. Add the purpose, samples and experiment in the Plate Designer.' : ps.length
+    const html = d && hasText(d.design) ? RICH.sanitize(d.design) : '';
+    const better = d && !html && ps.filter(p => p.id !== d.id && hasText(p.design));
+    $('#ddesign').innerHTML = html || `<p class="hint emptyd">${d ? `The design sheet of “${esc(d.name)}” is empty${d.auto ? ' (it was made automatically to hold your results)' : ''}. `
+      + (better.length ? 'If your design is saved under another plate, pick it in the list above; otherwise write' : 'If your design is saved in a project file, open it above; otherwise write')
+      + ' the purpose, samples and experiment in the Plate Designer (Edit in Plate Designer →).' : ps.length
       ? 'No design is linked to this run. Pick one above, or create one from this run.' : 'No plate designs in this browser yet. Open a project file (.qpcrplan.json), or create a design from this run.'}</p>`;
+    renderDesignPlate(P, d);
   }
+  const hasText = h => !!RICH.sanitize(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\b(Purpose|Samples|Experiment|Controls|Sample|Description|Source \/ date|Notes)\b/g, '').trim();
+  // ---------- the designed plate next to this run's data ----------
+  let dColor = null;
+  const designColor = d => dColor || (Object.values(d.wells || {}).some(w => w.group) ? 'group' : 'sample');
+  function designLegend(d, by) {
+    const pal = PLATE.palettes(d), items = by === 'task' ? Object.keys(PLATE.TASKC).filter(t => Object.values(d.wells).some(w => w.task === t)) : pal[by] || [];
+    let lg = items.map(v => `<span><i class="dot" style="--c:${PLATE.colorFor(by, v, pal)}"></i>${esc(v)}</span>`).join('');
+    if (by !== 'target' && pal.target.length) lg += '<span style="flex-basis:100%;height:0"></span>' + pal.target.map(t => `<span><i class="sq" style="--c:${PLATE.colorFor('target', t, pal)}"></i>${esc(t)}</span>`).join('');
+    return lg + '<span><i class="dot ntc"></i>NTC</span>';
+  }
+  // one row per designed sample × target, with this run's Cts from the same wells
+  function designVsRun(P, d) {
+    const groups = [...PLATE.summaryOf(d).values()], rows = [];
+    const notesOf = list => [...new Set(list.map(k => d.wells[k] && d.wells[k].note).filter(Boolean))].join('; ');
+    groups.forEach(G => {
+      let ws = P.an.wells.filter(w => G.wells.includes(w.pos) && (!G.target || w.target === G.target)), runTarget = '';
+      // the target was renamed in the design (e.g. a setup error corrected later): match by well position when the run has one target there
+      if (!ws.length) { const here = P.an.wells.filter(w => G.wells.includes(w.pos)), ts = [...new Set(here.map(w => w.target))]; if (ts.length === 1) { ws = here; runTarget = ts[0]; } }
+      const used = ws.filter(w => !w.excluded), cts = used.map(w => w.ct).filter(v => v != null && Number.isFinite(v));
+      const mean = cts.length ? cts.reduce((a, b) => a + b, 0) / cts.length : null;
+      const sd = cts.length > 1 ? Math.sqrt(cts.reduce((a, b) => a + (b - mean) ** 2, 0) / (cts.length - 1)) : null;
+      const runNames = [...new Set(ws.map(w => w.sample))];
+      rows.push({ sample: G.sample || '—', target: G.target || '—', group: [...G.group].join(', '), task: [...G.task].join(', '), wells: PLATE.compress(G.wells), n: G.wells.length,
+        amp: ws.length ? `${cts.length}/${used.length}` : 'not in run', mean, sd, note: notesOf(G.wells), runName: runNames.length && G.sample && !runNames.includes(G.sample) ? runNames.join(', ') : '', runTarget });
+    });
+    return rows;
+  }
+  function renderDesignPlate(P, d) {
+    const has = d && d.wells && Object.keys(d.wells).length;
+    $('#dplatebox').hidden = !has; if (!has) return;
+    const by = designColor(d);
+    document.querySelectorAll('#dcolor button').forEach(b => b.setAttribute('aria-pressed', b.dataset.dc === by));
+    $('#dplate').innerHTML = PLATE.svg(d, { colorBy: by, light: !!document.documentElement.dataset.theme });
+    $('#dlegend').innerHTML = designLegend(d, by);
+    const rows = designVsRun(P, d), renamed = rows.filter(r => r.runName || r.runTarget);
+    $('#dvr').innerHTML = `<table><thead><tr><th>Sample</th><th>Target</th><th>Group</th><th>Wells</th><th>Amplified</th><th>Mean Ct</th><th>SD</th><th>Notes</th></tr></thead><tbody>${rows.map(r =>
+      `<tr><td>${esc(r.sample)}${r.runName ? `<div class="sd">in run: ${esc(r.runName)}</div>` : ''}</td><td>${esc(r.target)}${r.runTarget ? `<div class="sd">in run: ${esc(r.runTarget)}</div>` : ''}</td><td>${esc(r.group)}</td><td class="small">${esc(r.wells)}</td><td>${esc(r.amp)}</td><td>${f2(r.mean)}</td><td class="${r.sd != null && r.sd > 0.3 ? 'bad' : ''}">${f2(r.sd)}</td><td class="small">${esc(r.note)}</td></tr>`).join('')}</tbody></table>`;
+    $('#dvrnote').textContent = renamed.length ? `${renamed.length} row${renamed.length > 1 ? 's' : ''} use a different sample or target name in the run file (shown as “in run”); Cts are matched by well position.` : 'Cts are matched by well position and target, using this run’s threshold and exclusions.';
+  }
+  document.querySelectorAll('#dcolor button').forEach(b => b.addEventListener('click', () => { dColor = b.dataset.dc; const P = cur(); renderDesignPlate(P, designFor(P)); }));
   $('#dlink').addEventListener('change', e => { const P = cur(); link(P, e.target.value); renderDesign(P); });
   $('#dnew').addEventListener('click', () => { const P = cur(), p = createDesign(P, false); if (!p) return; renderDesign(P); alertStatus('Created the design “' + p.name + '”. Fill in the purpose and samples in the Plate Designer.'); });
   // a design record built from the run's own plate map; auto = made only to hold results typed before any design was linked
@@ -475,7 +520,12 @@
     let h = `<h1>${esc(d ? d.name : P.name)}</h1>`;
     h += `<p>Run file ${esc(P.file)}${runText(P) ? ' · run ended ' + esc(runText(P)) : ''} · ${new Set(P.data.wells.map(w => w.pos)).size} wells · targets ${esc(P.an.targets.join(', '))}</p>`;
     h += '<h2>Design</h2>';
-    if (d) { const meta = META.map(([k, lab]) => [lab, d.meta && d.meta[k]]).filter(([, v]) => v); if (meta.length) h += T(['Detail', ''], meta).replace(/<thead>.*?<\/thead>/, ''); h += RICH.sanitize(d.design || '') || '<p><em>No design notes.</em></p>'; }
+    if (d) { const meta = META.map(([k, lab]) => [lab, d.meta && d.meta[k]]).filter(([, v]) => v); if (meta.length) h += T(['Detail', ''], meta).replace(/<thead>.*?<\/thead>/, ''); h += hasText(d.design) ? RICH.sanitize(d.design) : '<p><em>No design notes.</em></p>';
+      if (d.wells && Object.keys(d.wells).length) {
+        h += `<h3>Designed plate map</h3>` + img(await svgImage(PLATE.svg(d, { colorBy: designColor(d), forExport: true })));
+        const rows = designVsRun(P, d);
+        h += '<h3>Design and results by sample</h3>' + T(['Sample', 'Target', 'Group', 'Wells', 'Amplified', 'Mean Ct', 'SD', 'Notes'], rows.map(r => [r.sample + (r.runName ? ` (in run: ${r.runName})` : ''), r.target + (r.runTarget ? ` (in run: ${r.runTarget})` : ''), r.group, r.wells, r.amp, f2(r.mean), f2(r.sd), r.note]));
+      } }
     else h += '<p><em>No plate design linked to this run.</em></p>';
     h += '<h2>Data</h2>';
     h += `<p>Threshold ${esc(thDesc(P))} · baseline ${P.opt.baseline === 'fixed' ? `cycles ${P.opt.bStart}–${P.opt.bEnd}` : 'from the instrument'}${Object.keys(P.opt.excluded).length ? ` · ${Object.keys(P.opt.excluded).length} well(s) excluded` : ''}.${i.protocol ? ' Run method: ' + esc(QPCR.protocolText(i.protocol)) + '.' : ''}</p>`;
@@ -508,6 +558,11 @@
     alertStatus('Preparing Word report…');
     try { const r = await buildReport(); dl(r.name + '.docx', await RICH.docxFrom(r.parts, r.images, r.name)); alertStatus('Saved ' + r.name + '.docx'); }
     catch (err) { alertStatus('Could not make the report: ' + (err.message || err)); }
+  });
+  $('#rmd').addEventListener('click', async () => {
+    alertStatus('Preparing notes…');
+    try { const r = await buildReport(); dl(r.name + '.md', new Blob([r.parts.map(h => RICH.htmlToMd(h)).join('\n\n---\n\n')], { type: 'text/markdown' })); alertStatus('Saved ' + r.name + '.md (text notes: paste into Docs, Notion or a lab notebook; figures are in the Word/PDF report).'); }
+    catch (err) { alertStatus('Could not make the notes: ' + (err.message || err)); }
   });
   $('#rpdf').addEventListener('click', async () => {
     alertStatus('Preparing PDF…');
