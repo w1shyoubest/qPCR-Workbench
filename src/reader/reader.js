@@ -382,7 +382,9 @@
     const links = store(LSTORE, {}), ps = dstate().plates;
     if (Object.prototype.hasOwnProperty.call(links, P.file)) return ps.find(p => p.id === links[P.file]) || null;
     const keys = [norm(P.file), norm(P.data.info && P.data.info.name)].filter(Boolean);
-    return ps.find(p => keys.includes(norm(p.name))) || ps.find(p => keys.includes(norm(p.meta && p.meta.runFile))) || null;
+    // prefer a design that has notes over an empty one with the same name
+    const hits = ps.filter(p => keys.includes(norm(p.name))).concat(ps.filter(p => keys.includes(norm(p.meta && p.meta.runFile))));
+    return hits.find(p => hasText(p.design)) || hits[0] || null;
   }
   function link(P, id) { const l = store(LSTORE, {}); l[P.file] = id; put(LSTORE, l); }
   // write one field of a design plate straight into storage, so an open Plate Designer tab picks it up
@@ -483,14 +485,15 @@
       let added = 0; d.plates.forEach(p => { if (!have.has(p.id)) { s.plates.push(p); added++; } else if (replace) s.plates[have.get(p.id)] = p; });
       // runs that only had an automatic design now get the real one from the file, keeping results typed so far
       const links = store(LSTORE, {}); let moved = 0;
-      plates.forEach(P => { const a = s.plates.find(p => p.id === links[P.file]); if (!a || !a.auto) return;
+      // also runs linked to an empty design (made with "Create a design from this run") when the file has a filled-in one
+      plates.forEach(P => { const a = s.plates.find(p => p.id === links[P.file]); if (!a || (!a.auto && hasText(a.design))) return;
         const keys = [norm(P.file), norm(P.data.info && P.data.info.name)].filter(Boolean);
-        const real = s.plates.find(p => !p.auto && (keys.includes(norm(p.name)) || keys.includes(norm(p.meta && p.meta.runFile)))); if (!real) return;
-        if (RICH.sanitize(a.results || '')) real.results = (RICH.sanitize(real.results || '') ? real.results : '') + a.results;
-        s.plates.splice(s.plates.indexOf(a), 1); links[P.file] = real.id; moved++; });
+        const real = s.plates.find(p => p.id !== a.id && !p.auto && hasText(p.design) && (keys.includes(norm(p.name)) || keys.includes(norm(p.meta && p.meta.runFile)))); if (!real) return;
+        if (hasText(a.results)) { real.results = (hasText(real.results) ? real.results : '') + a.results; a.results = ''; }
+        if (a.auto) s.plates.splice(s.plates.indexOf(a), 1); links[P.file] = real.id; moved++; });
       put(LSTORE, links);
       if (!put(DSTORE, s)) throw new Error('browser storage is full or blocked');
-      render(); alertStatus(`Opened ${f.name}: ${added} plate design${added === 1 ? '' : 's'} added${clash.length ? `, ${clash.length} ${replace ? 'replaced' : 'kept as they were'}` : ''}.`);
+      render(); alertStatus(`Opened ${f.name}: ${added} plate design${added === 1 ? '' : 's'} added${clash.length ? `, ${clash.length} ${replace ? 'replaced' : 'kept as they were'}` : ''}${moved ? `; ${moved} run${moved > 1 ? 's' : ''} now linked to the filled-in design` : ''}.`);
     } catch (err) { alertStatus('Could not open ' + f.name + ': ' + (err.message || err)); }
   });
   $('#xproj').addEventListener('click', () => { const s = dstate(); if (!s.plates.length) return alertStatus('No plate designs to save yet.');

@@ -1,71 +1,166 @@
 # qPCR Workbench
 
-Two browser tools for qPCR on Applied Biosystems QuantStudio instruments, built and tested with QuantStudio 5 files from Design & Analysis v1.6:
+Plan qPCR plates, read the runs, and write up the results in the browser. Built for Applied Biosystems QuantStudio instruments and tested with QuantStudio 5 files from Design & Analysis v1.6.
 
-- **Plate Designer**: plan each plate well by well and keep its record with it: the design (purpose, samples, experiment), the plate map and the protocol (reagents, cycling, log).
-- **Reader**: open finished runs to see each plate's design next to its data (plate layout, amplification curves, Cts, QC flags, ΔCt), write results and conclusions, save everything as one Word or PDF report, and compare plates side by side.
+**Open it:** https://w1shyoubest.github.io/qPCR-Workbench/
 
-The two share their plates in the browser: plan in the Designer, run the plate, open the run file in the Reader, and the design, the data and your conclusions are on one page.
+| Page | Use it to |
+| --- | --- |
+| **Plate Designer** | Plan each plate before the run: purpose, samples, the plate map well by well, reagents, cycling and a dated log. |
+| **Reader** | Open the finished run: see the design next to the data (curves, Cts, QC, ΔCt), write results and conclusions, and export one report. |
 
-**Your data never leaves your computer.** Files are opened and analyzed entirely inside your browser. Nothing is uploaded, including when you use the hosted version.
+**Your data never leaves your computer.** Files are read inside your browser, and nothing is uploaded, including on the hosted site.
 
-## Use it
+---
 
-- **Online:** https://w1shyoubest.github.io/qPCR-Workbench/ opens the Reader. Use the header at the top of either page to switch to the Plate Designer.
-- **Install as an app:** in Chrome or Edge, click the install icon at the right end of the address bar. In Safari (macOS 14+), choose File → Add to Dock. You get one app with both tools. It works offline after the first visit and updates itself when a new version is published.
-- **Fully offline:** download `docs/index.html` (Reader) or `docs/designer.html` (Plate Designer) and open it in a browser. Each is a single self-contained file.
+## Quick start: from plan to report
 
-## Plate Designer
+1. **Plan the plate** in the [Plate Designer](https://w1shyoubest.github.io/qPCR-Workbench/designer.html).
+   - Fill in **Design**: the experiment details and the design sheet (purpose, samples table, experiment, controls).
+   - Lay out the **Plate layout**: select wells and set sample, target, task, group and a note.
+   - Give the plate the same name you will give the run in QuantStudio (for example `2026-11-17_2nd`). The Reader uses that name to find the plate later.
+2. **Run the plate** on the instrument. Export the results (`.xls`), or keep the `.eds` file.
+3. **Open the run** in the [Reader](https://w1shyoubest.github.io/qPCR-Workbench/) by dropping the file on the page.
+   - The Reader links the run to its design automatically, by name. Above the data you see the design sheet, the designed plate map, and a **Design and results by sample** table with each sample's Cts.
+   - If the wrong design is linked, or none, choose the right one in the **Plate design** list.
+4. **Write the conclusions** in **Results and conclusions**, below the data. They are saved with the design.
+5. **Export the report** from the **Report** section as Word (.docx), PDF or Notes (.md). It is one document with the design, plate maps, curves, Ct tables, ΔCt, QC flags, conclusions and log.
+6. **Keep a copy** with **Save project file**, on either page. It writes a `.qpcrplan.json` file with every plate, design and conclusion.
 
-A typical plate, top to bottom:
+---
 
-1. **Design**: experiment details (date, operator, instrument, block, chemistry, run file) and a design sheet for the purpose, samples and experiment. The design sheet is a rich-text box with headings, lists and editable tables. Tab moves between table cells, and pasting from Google Docs or Excel keeps tables. New plates start with a Purpose / Samples / Experiment / Controls outline. Markdown works: type `# `, `- ` or `1. ` at the start of a line, or `**bold**`, or paste Markdown including `| tables |`. **Format Markdown** converts Markdown already in the box. LaTeX-style symbols become proper characters, as you type and in pasted text: `$\text{Ca}^{2+}$` → Ca²⁺, `$\text{CaCl}_2$` → CaCl₂, and `\mu`, `\pm`, `\times`, `\Delta`, `^\circ` → µ, ±, ×, Δ, °. Plain `Ca2+`, `Mg2+` and similar ions become Ca²⁺ and Mg²⁺ too. In single-line fields such as log entries and well notes, the same symbols become Unicode characters.
-2. **Plate layout**: a 96- or 384-well map. The bar above it sets the format (96 or 384 wells) and what the colours show (sample, target, group or task).
-   - To select wells, click one, drag across several, Shift-click, or click a row letter or column number.
-   - For the selection, set sample, target(s), task, reporter, quencher, quantity, group, template and a note. Multiplex wells take several targets separated by commas.
-   - Fill helpers make sample series (with replicates) and standard dilution series. Copy/paste and undo work too.
-   - Hover over a well to see everything recorded for it.
-3. **Plate map summary**: each sample × target combination with its wells and n, plus a full table of every well.
-4. **Protocol record**:
-   - master-mix calculator, with overage and a mix per target
-   - thermal cycling program, with presets
-   - dated log with quick steps (time optional)
+## Saving, backups and moving to another computer
 
-Click any section title (▼) to fold that section away; the plate layout always stays open, and **Show all / Hide all sections** sit above the page. **Delete all plates** (next to Duplicate this plate) clears the project in this browser; Undo brings it back.
+- Both pages autosave in your browser and share the same plates. Plans made in the Designer appear in the Reader. Conclusions written in the Reader are saved with the plate, so they are in the project file too.
+- Browser storage belongs to one browser on one computer. **Save project file** regularly; the file is your permanent copy.
+- **Open project file** (on either page) loads a `.qpcrplan.json` file.
+  - If a plate from the file is already in the browser, the Reader asks whether to keep or replace it.
+  - If a run is linked to an empty design, the Reader switches it to the filled-in design from the file and keeps anything you already typed.
+- A suggested folder for each project:
 
-You can keep several plates in one project. Work autosaves in the browser, and **Save project file** writes a `.qpcrplan.json`; reopen that file to keep editing. To share or archive a record, use **Export** for this plate or all plates:
+  ```
+  my-project/
+    my-project.qpcrplan.json   the project file (all plates, designs, conclusions)
+    runs/                      QuantStudio exports (.xls) or .eds files
+    lab log/                   notebook exports, protocols
+    reports/                   Word / PDF / Markdown reports exported from the Reader
+  ```
 
-- **Word (.docx)**: a real Word document with headings, tables, Ca²⁺-style formatting and a plate-map picture. It also opens in Google Docs and Pages.
-- **PDF**: the same record, through the print dialog (choose "Save as PDF").
+## Getting the newest version
 
-**Import run files** turns `.eds` files or exports with a *Sample Setup* sheet (`.xls`, `.xlsx`, `.ods`, `.txt`) into plates, one per file. It fills in the run details and the log's run-finished and export times. Wells named "NTC" become NTCs, and wells that have a target but no sample are skipped. Exports: plate map (PNG), well list (CSV), and a QuantStudio-style sample setup (.txt).
+- The page checks for a new version every time it loads, so a normal reload is enough. The version number is in the footer (for example `v2.6.1`).
+- If a page still looks old, press **⌘ Shift R** (Mac) or **Ctrl Shift R** (Windows) once.
+- **Install as an app:**
+  - Chrome or Edge: use the install icon at the right of the address bar.
+  - Safari (macOS 14+): choose File → Add to Dock.
 
-## Reader
+  One app holds both pages and works offline after the first visit.
+- **Fully offline:** download `docs/index.html` (Reader) or `docs/designer.html` (Plate Designer) and open it in a browser. Each is one self-contained file.
+
+---
+
+## Plate Designer guide
+
+The sections below follow the page from top to bottom.
+- Click a section title (▼) to fold that section away. **Plate layout** always stays open.
+- **Show all sections** and **Hide all sections** sit under the tabs.
+
+**Tabs:** one tab per plate.
+- **+ New plate** and **Duplicate this plate** add plates.
+- **Delete all plates** asks first, and Undo brings the plates back.
+- The × on a tab deletes that plate.
+
+**Design:**
+- **Experiment details:** project, date, operator, instrument, block, chemistry, run file name, experiment type and passive reference.
+- **Design sheet:** a rich-text box.
+  - It has headings, bold and italic, lists and tables. Use **+ Row** and **+ Column** to grow a table, and Tab to move between cells.
+  - Tables pasted from Google Docs or Excel stay tables.
+  - **Outline** inserts Purpose / Samples / Experiment / Controls headings.
+- **Markdown:** `# ` makes a heading, `- ` or `1. ` makes a list, and `**bold**` and `| tables |` also work. **Format Markdown** converts Markdown already in the box.
+- **Symbols:**
+  - `$\text{Ca}^{2+}$` → Ca²⁺ and `$\text{CaCl}_2$` → CaCl₂.
+  - `\mu`, `\pm`, `\times`, `\Delta` and `^\circ` → µ, ±, ×, Δ and °.
+  - Plain `Ca2+` and `Mg2+` become Ca²⁺ and Mg²⁺.
+  - In one-line fields (log entries, well notes) the symbols become Unicode characters.
+
+**Plate layout:**
+- The bar on top sets the **Format** (96 or 384 wells) and **Color by** (sample, target, group or task).
+- **Selecting wells:** click a well, drag across wells, Shift-click, or click a row letter or column number.
+- **Filling wells:** set sample, target(s), task, reporter, quencher, quantity, group, template and note, then click **Apply to selection**. For multiplex wells, separate the targets with commas.
+- **Helpers:** **Fill a sample series** (with replicates), **Fill a dilution series** (standards) and **Copy / paste wells**. ⌘Z or Ctrl Z undoes.
+
+**Plate map summary:** each sample × target with its wells and n. **All wells in detail** lists every well.
+
+**Protocol record:**
+- master-mix calculator with overage
+- thermal cycling program, with presets
+- dated log with quick steps (time optional)
+
+**Import run files:**
+- Accepts `.eds` files, or exports with a *Sample Setup* sheet (`.xls`, `.xlsx`, `.ods`, `.txt`).
+- Each file becomes one plate. The run details are filled in, and the run-finished and export times go into the log.
+- Wells named "NTC" become NTCs.
+
+**Export:**
+- **This plate or all plates:** the plan as Word (.docx) or PDF.
+- **Under the plate:** plate map (PNG), well list (CSV) and a QuantStudio-style sample setup (.txt).
+
+---
+
+## Reader guide
+
+**Open runs:** drop files on the page, or choose them. Each run opens as a tab, and a **Compare plates** tab appears when two or more are open.
 
 **Supported files:**
+- `.eds` files (analyzed and saved in QuantStudio). They include the run method and multicomponent (FAM/ROX) data.
+- Exported results (`.xls`, `.xlsx` or `.ods`) with *Amplification Data*, *Sample Setup* and *Results* sheets, and optionally *Multicomponent Data* or *Raw Data*.
 
-- `.eds` (analyzed and saved in QuantStudio), which includes the run method and multicomponent (FAM/ROX) data
-- exported results (`.xls`, `.xlsx` or `.ods`) containing *Amplification Data*, *Sample Setup* and *Results*, and optionally *Multicomponent Data* or *Raw Data*
+The sections below follow the page from top to bottom.
+- Click a section title (▼) to fold it. **Curves** always stays open.
+- The page remembers which sections you folded.
 
-**Design and results report:**
+**Design** (from the Plate Designer):
+- **Plate design** list: the design linked to this run.
+  - **Open project file…** loads designs from a `.qpcrplan.json` file.
+  - **Create a design from this run** makes a design from the run's plate map.
+  - **Edit in Plate Designer →** opens the design there.
+- Experiment details and the design sheet. If the design sheet is empty, the page says so and tells you where to fill it in.
+- **Designed plate map**, coloured by sample, target, group or task.
+- **Design and results by sample:** each designed sample × target with its group, wells, amplified wells, mean Ct, SD and well notes.
+  - Cts are matched by well position, so samples or targets renamed in the design still line up.
+  - Where the run file uses a different name, it is shown as "in run: …".
 
-- When a run is opened, the Reader finds its plate design (same name as the file or the design's run file name) and shows, above the data: the experiment details, the design sheet, the **designed plate map** (colour by sample, target, group or task), and a **design and results by sample** table that puts each designed sample × target next to this run's amplified wells, mean Ct and SD (matched by well position, so renamed samples or targets still line up). Hovering a well in the run's plate layout also shows its design group and note. Choose another design from the list, open a project file, or **Create a design from this run** if there is none yet; **Edit in Plate Designer** jumps to it.
-- **Results and conclusions** sits below the data: the same rich-text box as the design sheet (tables, Markdown, Ca²⁺-style symbols). It is saved with the design, so it also appears in the Plate Designer's project file.
-- **Report** → Word (.docx), PDF, or **Notes (.md)** (text only, to paste into a lab notebook), for this run or all open runs: design sheet, designed plate map, design-and-results table, plate layout with Cts, curves, replicate summary, ΔCt table and chart, QC flags, results and conclusions, and the log. It uses the current threshold, baseline, exclusions and plot.
+**Data:**
+- **Threshold:** shared, or per target like QuantStudio.
+- **Baseline:** from the instrument, or fixed cycles.
+- **Plate layout:** select wells, rows or columns, and exclude or include them. Hover over a well for its Ct, its QC flags, and its design group and note.
+- **Curves:** amplification (ΔRn), Rn or multicomponent plots.
+  - Log or linear scale.
+  - Colour by target or sample.
+  - Filter by target and sample.
+- **QC flags**, modelled on QuantStudio: NOAMP, AMPNC, BADROX, DRNMIN, HIGHSD and outlier replicates.
+- **ΔCt**, ΔΔCt and fold change against matched controls, with a bar chart and SD error bars. Fold change assumes 100% amplification efficiency (2^ΔΔCt).
+- **Replicate summary** and **All wells**.
 
-**Data features:**
+**Results and conclusions:** the same rich-text box as the design sheet. It saves automatically with the linked design. If no design is linked yet, typing creates one for this run.
 
-- Plate layout with well selection (wells, rows, columns), exclusion and QC highlighting
-- Amplification (ΔRn), Rn and multicomponent (raw FAM and ROX) plots; log or linear scale; colour by target or sample
-- Cts recalculated at a shared threshold or per-target thresholds; instrument or fixed-cycle baseline
-- QC flags modelled on QuantStudio: NOAMP, AMPNC, BADROX, DRNMIN, HIGHSD, outlier replicates
-- ΔCt, ΔΔCt and fold change against matched controls, with bar charts and error bars
-- Multi-plate comparison: run QC table with a per-plate calibrator, ΔCt across plates, overlaid curves
-- CSV and PNG exports
+**Report:** for this run or all open runs.
+- **Word (.docx):** opens in Word, Google Docs and Pages.
+- **PDF:** made through the print dialog; choose "Save as PDF".
+- **Notes (.md):** text to paste into a lab notebook. The figures are only in the Word and PDF reports.
 
-Section titles fold away with a click (the curves always stay open), so you can jump to the part you need; the page remembers what you folded.
+The report uses the current threshold, baseline, exclusions and plot. **Save project file** keeps every design with its conclusions.
 
-Fold change assumes 100% amplification efficiency (2^ΔΔCt).
+**Export data:**
+- ΔCt table, replicate summary and all wells (CSV)
+- curve plot, ΔCt chart and plate layout (PNG)
+
+**Compare plates:**
+- run QC across plates, with a calibrator for each plate
+- ΔCt across plates
+- curves from different plates overlaid
+
+---
 
 ## Repository layout
 
@@ -76,11 +171,11 @@ docs/                    the built site, served by GitHub Pages (generated; don'
   sw.js, manifest.webmanifest, icons/
 src/
   build.py               builds docs/ from the sources below
-  reader/                reader.html (page) + reader.js (interface)
-  designer/              designer.html (page) + designer.js (interface)
-  shared/core.js         QuantStudio parsing and analysis, used by both tools
-  shared/rich.js         rich-text boxes (Markdown, symbols, safe HTML) and Word/PDF/Markdown reports, used by both tools
-  shared/plate.js        plate-map drawing for designs, used by both tools
+  reader/                reader.html (page) + reader.js
+  designer/              designer.html (page) + designer.js
+  shared/core.js         QuantStudio parsing and analysis
+  shared/rich.js         rich-text boxes (Markdown, symbols, safe HTML), foldable sections, Word/PDF/Markdown reports
+  shared/plate.js        plate-map drawing for designs
   static/                service worker, web app manifest and icons, copied to docs/
   vendor/                pinned third-party libraries
 ```
@@ -93,12 +188,11 @@ Edit files in `src/`, then rebuild:
 python3 src/build.py
 ```
 
-When releasing, bump `VERSION` in `src/static/sw.js` so installed copies pick up the new files. GitHub Pages serves the `docs/` folder of `main`.
+When releasing, bump `VERSION` in `src/static/sw.js` and the version in both page footers. GitHub Pages serves the `docs/` folder of `main`.
 
 ## Third-party libraries
 
 These are bundled into the built pages:
-
 - JSZip 3.10.1 (MIT or GPLv3)
 - SheetJS Community Edition 0.18.5 (Apache-2.0)
 - Chart.js 4.4.1 (MIT), Reader only
