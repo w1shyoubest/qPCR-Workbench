@@ -32,20 +32,72 @@
     { name: 'Nuclease-free water', stock: '', final: '', vol: 7, inMix: true, lot: '' },
     { name: 'Template (cDNA)', stock: '', final: '', vol: 2, inMix: false, lot: '' }];
   const META = [['project', 'Project / experiment'], ['date', 'Date', 'date'], ['operator', 'Operator'], ['instrument', 'Instrument'],
-    ['block', 'Block / plate'], ['chemistry', 'Chemistry'], ['runFile', 'Run file name'], ['expType', 'Experiment type'], ['passive', 'Passive reference'], ['samples', 'Sample source (RNA prep, cDNA batch…)', 'wide'],
-    ['aim', 'Aim / question', 'wide']];
+    ['block', 'Block / plate'], ['chemistry', 'Chemistry'], ['runFile', 'Run file name'], ['expType', 'Experiment type'], ['passive', 'Passive reference']];
+  const OUTLINE = {
+    design: '<h3>Purpose</h3><p><br></p><h3>Samples</h3><table><thead><tr><th>Sample</th><th>Description</th><th>Source / date</th><th>Notes</th></tr></thead><tbody><tr><td><br></td><td><br></td><td><br></td><td><br></td></tr><tr><td><br></td><td><br></td><td><br></td><td><br></td></tr></tbody></table><h3>Experiment</h3><p><br></p><h3>Controls</h3><p><br></p>',
+    results: '<h3>Results</h3><p><br></p><h3>Summary</h3><p><br></p><h3>Conclusion</h3><p><br></p>' };
   const QUICK = ['RNA extracted', 'DNase treatment', 'RNA quantified', 'cDNA synthesis (RT)', 'Master mix prepared', 'Plate loaded', 'Plate sealed & spun', 'Run started', 'Run finished', 'Data exported'];
 
   function newPlate(name, fmt) {
     return { id: Math.random().toString(36).slice(2, 9), name: name || 'Plate ' + (state.plates.length + 1), fmt: fmt || 96, wells: {},
       meta: { project: '', date: today(), operator: '', instrument: 'QuantStudio 5', block: fmt == 384 ? '384-well' : '96-well 0.2 mL', chemistry: 'TaqMan', runFile: '', samples: '', aim: '' },
       mix: { vol: 20, n: '', over: 10, comps: JSON.parse(JSON.stringify(DEFAULT_MIX)) },
-      cyc: JSON.parse(JSON.stringify(PRESETS.std)), log: [], notes: '' };
+      cyc: JSON.parse(JSON.stringify(PRESETS.std)), log: [], design: OUTLINE.design, results: '' };
   }
 
   // ---------- state, persistence, undo ----------
   let state = { plates: [], cur: 0, colorBy: 'sample' };
   try { const s = JSON.parse(localStorage.getItem(STORE)); if (s && s.plates && s.plates.length) state = s; } catch (e) { /* no storage */ }
+  // ---------- rich text (design sheet, results): only a small, safe subset of HTML is ever kept ----------
+  const KEEP = { P: 'p', DIV: 'div', BR: 'br', B: 'strong', STRONG: 'strong', I: 'em', EM: 'em', U: 'u', H1: 'h3', H2: 'h3', H3: 'h3', H4: 'h4', H5: 'h4', H6: 'h4',
+    UL: 'ul', OL: 'ol', LI: 'li', TABLE: 'table', THEAD: 'thead', TBODY: 'tbody', TFOOT: 'tbody', TR: 'tr', TH: 'th', TD: 'td', SUB: 'sub', SUP: 'sup', A: 'a', BLOCKQUOTE: 'blockquote' };
+  const DROP = /^(SCRIPT|STYLE|META|TITLE|LINK|COLGROUP|COL|HEAD|svg|IMG|IFRAME|OBJECT|EMBED|TEMPLATE|NOSCRIPT|FORM|INPUT|BUTTON|SELECT|TEXTAREA)$/i;
+  function sanitize(html) {
+    const src = new DOMParser().parseFromString('<body>' + (html || '') + '</body>', 'text/html').body, out = document.createElement('div');
+    (function walk(from, to) {
+      for (const n of [...from.childNodes]) {
+        if (n.nodeType === 3) { to.appendChild(document.createTextNode(n.nodeValue)); continue; }
+        if (n.nodeType !== 1 || DROP.test(n.tagName)) continue;
+        const st = (n.getAttribute('style') || '').toLowerCase();
+        let tag = KEEP[n.tagName];
+        if (n.tagName === 'B' && (/^docs-internal/.test(n.id || '') || /font-weight:\s*(normal|[1-5]00)/.test(st))) tag = null;
+        if (!tag && n.tagName === 'SPAN') tag = /font-weight:\s*(bold|[6-9]00)/.test(st) ? 'strong' : /font-style:\s*italic/.test(st) ? 'em' : null;
+        if (!tag) { walk(n, to); continue; }
+        const e = document.createElement(tag);
+        if (tag === 'a') { const h = n.getAttribute('href') || ''; if (/^(https?:|mailto:)/i.test(h)) { e.setAttribute('href', h); e.setAttribute('target', '_blank'); e.setAttribute('rel', 'noopener'); } }
+        if (tag === 'td' || tag === 'th') ['colspan', 'rowspan'].forEach(a => { const v = parseInt(n.getAttribute(a), 10); if (v > 1 && v < 100) e.setAttribute(a, v); });
+        walk(n, e); to.appendChild(e);
+      }
+    })(src, out);
+    const h = out.innerHTML.trim();
+    return /^(<(p|div)>)?(<br>)?(<\/(p|div)>)?$/.test(h) ? '' : h;
+  }
+  function textToHtml(t) {
+    const bullet = /^\s*[•\-*]\s+/;
+    return String(t || '').split(/\n\s*\n/).map(block => {
+      const lines = block.split('\n').filter(l => l.trim());
+      if (!lines.length) return '';
+      if (lines.length > 1 && lines.every(l => l.includes('\t'))) return '<table><tbody>' + lines.map(l => '<tr>' + l.split('\t').map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+      const ul = ls => '<ul>' + ls.map(l => '<li>' + esc(l.replace(bullet, '')) + '</li>').join('') + '</ul>';
+      if (lines.every(l => bullet.test(l))) return ul(lines);
+      if (lines.length > 1 && lines.slice(1).every(l => bullet.test(l))) return '<p>' + esc(lines[0]) + '</p>' + ul(lines.slice(1));
+      return '<p>' + lines.map(esc).join('<br>') + '</p>';
+    }).join('');
+  }
+  // older saves kept the aim, sample source and notes as plain text; move them into the two rich boxes
+  function upgrade(p) {
+    if (p.design == null) {
+      const parts = [];
+      if (p.meta && p.meta.aim) parts.push('<h3>Purpose</h3>' + textToHtml(p.meta.aim));
+      if (p.meta && p.meta.samples) parts.push('<h3>Samples</h3>' + textToHtml(p.meta.samples));
+      p.design = parts.join('');
+    }
+    if (p.results == null) p.results = p.notes ? textToHtml(p.notes) : '';
+    if (p.meta) { delete p.meta.aim; delete p.meta.samples; }
+    delete p.notes;
+    return p;
+  }
+  state.plates.forEach(upgrade);
   if (!state.plates.length) state.plates.push(newPlate('Plate 1', 96));
   const P = () => state.plates[Math.min(state.cur, state.plates.length - 1)];
   let sel = new Set(), anchor = null, clip = null, printing = false;
@@ -191,7 +243,7 @@
   function renderMeta() {
     const p = P();
     $('#meta').innerHTML = META.map(([k, lab, t]) => `<label class="${t === 'wide' ? 'wide' : ''}">${lab}${t === 'wide' ? `<textarea data-meta="${k}" rows="2">${esc(p.meta[k] || '')}</textarea>` : `<input data-meta="${k}" type="${t === 'date' ? 'date' : 'text'}" value="${esc(p.meta[k] || '')}">`}</label>`).join('');
-    $('#notes').value = p.notes || '';
+    document.querySelectorAll('.rich').forEach(el => { el.innerHTML = sanitize(p[el.dataset.key]); });
   }
   const numv = v => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
   const r1 = v => Number.isFinite(v) ? (Math.round(v * 10) / 10).toLocaleString() : '—';
@@ -319,7 +371,7 @@
   $('#copy').addEventListener('click', copy); $('#paste').addEventListener('click', paste);
 
   document.addEventListener('keydown', e => {
-    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.activeElement.isContentEditable;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); doUndo(); }
     else if (typing) return;
@@ -336,7 +388,7 @@
     if (del) { const i = +del.dataset.del; if (!confirm(`Delete “${state.plates[i].name}” and its record? (Undo can bring it back.)`)) return; snap(); state.plates.splice(i, 1); state.cur = Math.max(0, Math.min(state.cur, state.plates.length - 1)); sel.clear(); renderAll(); persist(); return; }
     const t = e.target.closest('.tab'); if (!t) return;
     if (t.dataset.add) { snap(); state.plates.push(newPlate('', P().fmt)); state.cur = state.plates.length - 1; }
-    else if (t.dataset.dup) { snap(); const c = JSON.parse(JSON.stringify(P())); c.id = Math.random().toString(36).slice(2, 9); c.name = P().name + ' (copy)'; c.log = []; c.notes = ''; c.meta.date = today(); c.meta.runFile = ''; state.plates.push(c); state.cur = state.plates.length - 1; }
+    else if (t.dataset.dup) { snap(); const c = JSON.parse(JSON.stringify(P())); c.id = Math.random().toString(36).slice(2, 9); c.name = P().name + ' (copy)'; c.log = []; c.results = ''; c.meta.date = today(); c.meta.runFile = ''; state.plates.push(c); state.cur = state.plates.length - 1; }
     else state.cur = +t.dataset.i;
     sel.clear(); renderAll(); persist();
   });
@@ -351,7 +403,6 @@
 
   // record edits
   $('#meta').addEventListener('input', e => { const k = e.target.dataset.meta; if (k) { P().meta[k] = e.target.value; persist(); } });
-  $('#notes').addEventListener('input', e => { P().notes = e.target.value; persist(); });
   [['#m_vol', 'vol'], ['#m_n', 'n'], ['#m_over', 'over']].forEach(([id, k]) => $(id).addEventListener('input', e => { P().mix[k] = e.target.value; renderMix(); persist(); }));
   $('#mix').addEventListener('input', e => { const tr = e.target.closest('tr[data-i]'), f = e.target.dataset.f; if (!tr || !f) return; P().mix.comps[+tr.dataset.i][f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; renderMix(); persist(); });
   $('#mix').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (!b) return; snap(); P().mix.comps.splice(+b.dataset.rm, 1); renderMix(true); persist(); });
@@ -379,6 +430,67 @@
   $('#log').addEventListener('change', e => { if (e.target.dataset.f === 'd' || e.target.dataset.f === 'h') renderLog(); });
   $('#log').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (!b) return; snap(); P().log.splice(+b.dataset.rm, 1); renderLog(); persist(); });
 
+  // ---------- rich editor ----------
+  function cellAtCaret(root) { const s = getSelection(); if (!s.rangeCount) return null; let n = s.anchorNode; if (n && n.nodeType === 3) n = n.parentNode; const c = n && n.closest && n.closest('td,th'); return c && root.contains(c) ? c : null; }
+  function caretInto(el) { const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  function emptyCell(tagName) { const c = document.createElement(tagName); c.innerHTML = '<br>'; return c; }
+  const TABLE_OPS = {
+    rowAfter(c) {
+      const tr = c.parentNode, n = document.createElement('tr');
+      [...tr.cells].forEach(() => n.appendChild(emptyCell('td')));
+      if (tr.parentNode.tagName === 'THEAD') { const t = tr.closest('table'), tb = t.tBodies[0] || t.appendChild(document.createElement('tbody')); tb.insertBefore(n, tb.firstChild); } else tr.after(n);
+      return n.cells[Math.min(c.cellIndex, n.cells.length - 1)];
+    },
+    colAfter(c) { const i = c.cellIndex; [...c.closest('table').rows].forEach(r => { const ref = r.cells[Math.min(i, r.cells.length - 1)]; if (ref) ref.after(emptyCell(ref.tagName)); }); return c.nextElementSibling; },
+    delRow(c) { const t = c.closest('table'), tr = c.parentNode, next = tr.nextElementSibling || tr.previousElementSibling; tr.remove(); if (!t.rows.length) { t.remove(); return null; } return next && next.cells[0]; },
+    delCol(c) { const t = c.closest('table'), i = c.cellIndex; [...t.rows].forEach(r => r.cells[i] && r.cells[i].remove()); if (![...t.rows].some(r => r.cells.length)) { t.remove(); return null; } return t.rows[0].cells[Math.max(0, i - 1)]; }
+  };
+  function setupRich(box) {
+    const key = box.dataset.rich;
+    box.innerHTML = `<div class="tb noprint" role="toolbar" aria-label="Formatting">
+      <button data-cmd="h3" title="Heading">H</button><button data-cmd="p" title="Normal text">¶</button>
+      <button data-cmd="bold" title="Bold (⌘B)"><b>B</b></button><button data-cmd="italic" title="Italic (⌘I)"><i>I</i></button><button data-cmd="underline" title="Underline (⌘U)"><u>U</u></button>
+      <button data-cmd="insertUnorderedList" title="Bulleted list">• List</button><button data-cmd="insertOrderedList" title="Numbered list">1. List</button>
+      <span class="sep"></span><button data-cmd="table" title="Insert a table">Table</button>
+      <button data-t="rowAfter" title="Add a row below">+ Row</button><button data-t="colAfter" title="Add a column to the right">+ Column</button>
+      <button data-t="delRow" title="Delete this row">− Row</button><button data-t="delCol" title="Delete this column">− Column</button>
+      <span class="sep"></span><button data-cmd="removeFormat" title="Clear formatting">Clear format</button><button data-cmd="outline" title="Insert section headings">Outline</button></div>
+      <div class="rich" contenteditable="true" spellcheck="true" data-key="${key}" data-ph="${esc(box.dataset.ph)}" role="textbox" aria-multiline="true" aria-label="${key === 'design' ? 'Design sheet' : 'Results and conclusions'}"></div>`;
+    const ed = box.querySelector('.rich'), tb = box.querySelector('.tb');
+    const save = () => { const h = ed.innerHTML.trim(); P()[key] = /^(<br>|<p><br><\/p>|<div><br><\/div>)?$/.test(h) ? '' : h; persist(); };
+    const sync = () => { const c = cellAtCaret(ed); tb.querySelectorAll('[data-t]').forEach(b => b.disabled = !c); };
+    tb.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
+    tb.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
+      const cmd = b.dataset.cmd;
+      if (document.activeElement !== ed && cmd !== 'outline') { ed.focus(); caretInto(ed); }
+      if (cmd === 'h3' || cmd === 'p') document.execCommand('formatBlock', false, cmd);
+      else if (cmd === 'table') { const head = '<tr>' + '<th>Column</th>'.repeat(3) + '</tr>', row = '<tr>' + '<td><br></td>'.repeat(3) + '</tr>'; document.execCommand('insertHTML', false, `<table><thead>${head}</thead><tbody>${row}${row}</tbody></table><p><br></p>`); }
+      else if (cmd === 'outline') { if (!sanitize(ed.innerHTML)) ed.innerHTML = OUTLINE[key]; else ed.insertAdjacentHTML('beforeend', OUTLINE[key]); ed.focus(); caretInto(ed.querySelector('p') || ed); }
+      else if (cmd) document.execCommand(cmd, false, null);
+      else if (b.dataset.t) { const c = cellAtCaret(ed); if (!c) return; const to = TABLE_OPS[b.dataset.t](c); if (to) caretInto(to); }
+      save(); sync();
+    });
+    ed.addEventListener('input', save);
+    ['keyup', 'mouseup', 'focus'].forEach(ev => ed.addEventListener(ev, sync));
+    ed.addEventListener('keydown', e => {
+      if (e.key !== 'Tab') return; const c = cellAtCaret(ed); if (!c) return; e.preventDefault();
+      const cells = [...c.closest('table').querySelectorAll('th,td')], i = cells.indexOf(c);
+      let to = cells[i + (e.shiftKey ? -1 : 1)];
+      if (!to && !e.shiftKey) to = TABLE_OPS.rowAfter(c);
+      if (to) { caretInto(to); save(); sync(); }
+    });
+    ed.addEventListener('paste', e => {
+      const cd = e.clipboardData; if (!cd) return; e.preventDefault();
+      const html = cd.getData('text/html'), text = cd.getData('text/plain');
+      document.execCommand('insertHTML', false, html ? sanitize(html) : textToHtml(text)); save();
+    });
+    ed.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files.length) e.preventDefault(); });
+    ed.addEventListener('click', e => { const a = e.target.closest('a'); if (a && (e.metaKey || e.ctrlKey)) window.open(a.href, '_blank', 'noopener'); });
+    sync();
+  }
+  document.querySelectorAll('.richbox').forEach(setupRich);
+
   // ---------- files ----------
   function dl(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
   const safeName = s => (s || 'plate').replace(/[^\w.-]+/g, '_');
@@ -386,7 +498,7 @@
   $('#openbtn').addEventListener('click', () => $('#openf').click());
   $('#openf').addEventListener('change', async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    try { const d = JSON.parse(await f.text()); if (!d.plates || !Array.isArray(d.plates)) throw new Error('not a plate designer project');
+    try { const d = JSON.parse(await f.text()); if (!d.plates || !Array.isArray(d.plates)) throw new Error('not a plate designer project'); d.plates.forEach(upgrade);
       const replace = confirm(`Open “${f.name}” (${d.plates.length} plate${d.plates.length > 1 ? 's' : ''})?\n\nOK = replace the plates open now\nCancel = add them alongside`);
       snap(); if (replace) { state.plates = d.plates; state.cur = 0; } else { state.plates.push(...d.plates); state.cur = state.plates.length - d.plates.length; }
       sel.clear(); renderAll(); persist(); status('Opened ' + f.name);
@@ -397,7 +509,7 @@
     const done = [], errs = [];
     for (const f of files) { try { done.push(await importRun(f)); } catch (err) { errs.push(f.name + ': ' + (err.message || err)); } }
     if (done.length) { snap();
-      const blank = q => !Object.keys(q.wells).length && !q.log.length && !q.notes;
+      const blank = q => !Object.keys(q.wells).length && !q.log.length && !q.results && (!q.design || q.design === OUTLINE.design);
       if (state.plates.length === 1 && blank(state.plates[0])) state.plates = [];
       const first = state.plates.length; state.plates.push(...done); state.cur = first; sel.clear(); renderAll(); persist(); }
     status((done.length ? `Imported ${done.length} plate${done.length > 1 ? 's' : ''} (${done.map(p => Object.keys(p.wells).length + ' wells').join(', ')})` : '') + (errs.length ? ' · Could not import ' + errs.join('; ') : ''));
@@ -443,7 +555,7 @@
       if (M('Experiment Type')) p.meta.expType = M('Experiment Type').replace(/Cт/g, 'Ct');
       p.meta.passive = M('Passive Reference') || 'None';
       if (M('Experiment Name') && M('Experiment Name') !== p.name) p.meta.expName = M('Experiment Name');
-      if (M('Experiment Comment')) p.notes = M('Experiment Comment');
+      if (M('Experiment Comment')) p.design = '<h3>Experiment comment (from QuantStudio)</h3>' + textToHtml(M('Experiment Comment'));
       p.cyc = []; // the export does not contain the run method
       p.mix.comps = []; p.mix.vol = ''; // nor the reaction recipe
       if (end) p.log.push({ t: end, step: 'Run finished', text: [inst && 'On ' + inst, M('Quantification Cycle Method') && 'Analysis: ' + M('Quantification Cycle Method') + (M('Stage/ Cycle where Ct Analysis is performed') ? ' at ' + M('Stage/ Cycle where Ct Analysis is performed') : '')].filter(Boolean).join('. ') });
