@@ -1,3 +1,4 @@
+// qPCR Reader (index.html): plate layout, curves, Ct, QC flags, ΔCt and multi-plate comparison for QuantStudio runs.
 (function () {
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

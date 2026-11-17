@@ -1,6 +1,6 @@
 # Third-party notices
 
-This app bundles the following libraries unmodified in `index.html` and `src/vendor/`.
+qPCR Workbench bundles the following libraries unmodified in the built pages (`docs/index.html`, `docs/designer.html`) and in `src/vendor/`.
 
 | Library | Version | License | Source |
 | --- | --- | --- | --- |

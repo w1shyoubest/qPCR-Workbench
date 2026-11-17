@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>qPCR Plate Designer</title>
+<title>Plate Designer · qPCR Workbench</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="theme-color" content="#16213e">
+<meta name="apple-mobile-web-app-title" content="qPCR Workbench">
 
 <style>
 :root{--bg:#ffffff;--ink:#1d2329;--muted:#5d6670;--line:#dde1e5;--panel:#f4f6f7;--accent:#1F3FD1;--warn:#9a5b00;--warnbg:#fff4e0;--pos:#0A7A44;--bad:#B0171F;color-scheme:light}
@@ -114,17 +115,16 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   input::-webkit-calendar-picker-indicator{display:none}
   input[type=checkbox]{accent-color:#000}
 }
+.wbnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:13px;padding:0 0 12px;margin-bottom:16px;border-bottom:1px solid var(--line)}.wbnav b{font-weight:650;margin-right:4px}.wbnav a{color:var(--muted);text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}.wbnav a:hover{color:var(--ink)}.wbnav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent)}@media print{.wbnav{display:none}}
 </style>
 </head>
 <body>
 <main>
+<nav class="wbnav" aria-label="qPCR Workbench"><b>qPCR Workbench</b><a href="./index.html">Reader</a><a href="./designer.html" aria-current="page">Plate Designer</a></nav>
 <div class="top noprint">
   <div>
     <h1>qPCR Plate Designer</h1>
-    <p>Lay out each plate well by well, then keep the run's protocol record with it — reagents, cycling program, and a timestamped log. Everything stays in this browser; save a file to keep or share a copy.</p>
-  </div>
-  <div class="row">
-    <a href="./index.html" class="hint">Open the qPCR Reader →</a>
+    <p>Plan each plate and keep its record in one place: the design, the plate map well by well, the results and conclusions, and the protocol (reagents, cycling, log). Everything stays in this browser. Save a project file to keep or share a copy.</p>
   </div>
 </div>
 
@@ -259,7 +259,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   </div>
 </section>
 
-<footer class="noprint">qPCR Plate Designer · part of qPCR Reader. Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
+<footer class="noprint">qPCR Workbench v2.2.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>

@@ -1,57 +1,92 @@
-# qPCR Reader for QuantStudio
+# qPCR Workbench
 
-A browser app for reading Applied Biosystems QuantStudio runs (built and tested with QuantStudio 5 files from Design & Analysis v1.6).
+Two browser tools for qPCR on Applied Biosystems QuantStudio instruments, built and tested with QuantStudio 5 files from Design & Analysis v1.6:
 
-**Your data never leaves your computer.** Files are opened and analyzed entirely inside your browser; nothing is uploaded, including when you use the hosted version.
+- **Plate Designer**: plan each plate well by well and keep its record with it: the design (purpose, samples, experiment), the plate map, the results and conclusions, and the protocol (reagents, cycling, log).
+- **Reader**: open finished runs to see the plate layout, amplification curves, Cts, QC flags and ΔCt, and compare plates side by side.
+
+**Your data never leaves your computer.** Files are opened and analyzed entirely inside your browser. Nothing is uploaded, including when you use the hosted version.
 
 ## Use it
 
-- **Online:** open the GitHub Pages address for this repository (Settings → Pages shows it), then drop in one or more run files.
-- **Install as an app:** in Chrome or Edge, click the install icon at the right end of the address bar; in Safari (macOS 14+), choose File → Add to Dock. You get a desktop/Dock icon and a standalone window, it works offline after the first visit, and it updates itself when a new version is published.
-- **Fully offline:** download `index.html` and open it in a browser. It is a single self-contained file.
+- **Online:** https://w1shyoubest.github.io/qPCR-Workbench/ opens the Reader. Use the header at the top of either page to switch to the Plate Designer.
+- **Install as an app:** in Chrome or Edge, click the install icon at the right end of the address bar. In Safari (macOS 14+), choose File → Add to Dock. You get one app with both tools. It works offline after the first visit and updates itself when a new version is published.
+- **Fully offline:** download `docs/index.html` (Reader) or `docs/designer.html` (Plate Designer) and open it in a browser. Each is a single self-contained file.
 
-## Supported files
+## Plate Designer
 
-- `.eds` (analyzed and saved in QuantStudio) — includes run method and multicomponent (FAM/ROX) data
-- Exported results `.xls`, `.xlsx` or `.ods` containing *Amplification Data*, *Sample Setup* and *Results* (optionally *Multicomponent Data* or *Raw Data*)
+A typical plate, top to bottom:
 
-## Features
+1. **Design**: experiment details (date, operator, instrument, block, chemistry, run file) and a design sheet for the purpose, samples and experiment. The design sheet is a rich-text box with headings, lists and editable tables. Tab moves between table cells, and pasting from Google Docs or Excel keeps tables. New plates start with a Purpose / Samples / Experiment / Controls outline.
+2. **Plate layout**: a 96- or 384-well map.
+   - To select wells, click one, drag across several, Shift-click, or click a row letter or column number.
+   - For the selection, set sample, target(s), task, reporter, quencher, quantity, group, template and a note. Multiplex wells take several targets separated by commas.
+   - Fill helpers make sample series (with replicates) and standard dilution series. Copy/paste and undo work too.
+   - Colour the map by sample, target, group or task. Hover over a well to see everything recorded for it.
+3. **Plate map summary**: each sample × target combination with its wells and n, plus a full table of every well.
+4. **Results and conclusions**: a second rich-text box, with a Results / Summary / Conclusion outline.
+5. **Protocol record**:
+   - master-mix calculator, with overage and a mix per target
+   - thermal cycling program, with presets
+   - dated log with quick steps (time optional)
+
+You can keep several plates in one project. Work autosaves in the browser, and **Save project file** writes a `.qpcrplan.json` to keep or share. **Print / PDF** gives a clean record.
+
+**Import run files** turns `.eds` files or exports with a *Sample Setup* sheet (`.xls`, `.xlsx`, `.ods`, `.txt`) into plates, one per file. It fills in the run details and the log's run-finished and export times. Wells named "NTC" become NTCs, and wells that have a target but no sample are skipped. Exports: plate map (PNG), well list (CSV), and a QuantStudio-style sample setup (.txt).
+
+## Reader
+
+**Supported files:**
+
+- `.eds` (analyzed and saved in QuantStudio), which includes the run method and multicomponent (FAM/ROX) data
+- exported results (`.xls`, `.xlsx` or `.ods`) containing *Amplification Data*, *Sample Setup* and *Results*, and optionally *Multicomponent Data* or *Raw Data*
+
+**Features:**
 
 - Plate layout with well selection (wells, rows, columns), exclusion and QC highlighting
-- Amplification (ΔRn), Rn and multicomponent (raw FAM and ROX) plots; log/linear; color by target or sample
+- Amplification (ΔRn), Rn and multicomponent (raw FAM and ROX) plots; log or linear scale; colour by target or sample
 - Cts recalculated at a shared threshold or per-target thresholds; instrument or fixed-cycle baseline
-- QC flags modeled on QuantStudio: NOAMP, AMPNC, BADROX, DRNMIN, HIGHSD, outlier replicates
+- QC flags modelled on QuantStudio: NOAMP, AMPNC, BADROX, DRNMIN, HIGHSD, outlier replicates
 - ΔCt, ΔΔCt and fold change against matched controls, with bar charts and error bars
-- Multi-plate comparison: run QC table with per-plate calibrator, ΔCt across plates, overlaid curves
+- Multi-plate comparison: run QC table with a per-plate calibrator, ΔCt across plates, overlaid curves
 - CSV and PNG exports
 
 Fold change assumes 100% amplification efficiency (2^ΔΔCt).
 
-## Plate Designer
+## Repository layout
 
-`designer.html` (linked from the reader) plans a plate before the run and keeps its protocol record:
-
-- 96- or 384-well plate map: click, drag, Shift-click or click a row/column header to select wells, then set sample, target(s), task, reporter, quencher, quantity, group, template and a note. Multiplex wells take several targets separated by commas.
-- Fill helpers for sample series (with replicates) and standard dilution series; copy/paste and undo.
-- Color the map by sample, target, group or task; hover a well to see everything recorded for it.
-- **Design** sheet above the plate and **Results and conclusions** below it: rich-text boxes with headings, lists and editable tables (Tab moves between cells; paste from Docs or Excel keeps tables). New plates start with a Purpose / Samples / Experiment / Controls outline.
-- Plate map summary (sample × target, wells, n) and a full well table.
-- Protocol record: master-mix calculator (overage, per-target mixes), thermal cycling program with presets, and a dated log with quick steps (time optional).
-- Several plates per project. Work autosaves in the browser; "Save project file" writes a `.qpcrplan.json` to keep or share. Print / PDF gives a clean record.
-- Import a layout from a run file (`.eds`, or an export with a *Sample Setup* sheet); export the plate map (PNG), well list (CSV) and a QuantStudio-style sample setup (.txt).
+```
+docs/                    the built site, served by GitHub Pages (generated; don't edit by hand)
+  index.html             Reader
+  designer.html          Plate Designer
+  sw.js, manifest.webmanifest, icons/
+src/
+  build.py               builds docs/ from the sources below
+  reader/                reader.html (page) + reader.js (interface)
+  designer/              designer.html (page) + designer.js (interface)
+  shared/core.js         QuantStudio parsing and analysis, used by both tools
+  static/                service worker, web app manifest and icons, copied to docs/
+  vendor/                pinned third-party libraries
+```
 
 ## Develop
 
-Sources are in `src/` (`core.js` parsing and analysis, `app2.js` interface, `template.html` page). Rebuild the single-file app after editing:
+Edit files in `src/`, then rebuild:
 
 ```bash
 python3 src/build.py
 ```
 
-When releasing, bump `VERSION` in `sw.js` so installed copies pick up the new files.
+When releasing, bump `VERSION` in `src/static/sw.js` so installed copies pick up the new files. GitHub Pages serves the `docs/` folder of `main`.
 
 ## Third-party libraries
 
-Bundled into `index.html`: JSZip 3.10.1 (MIT or GPLv3), SheetJS Community Edition 0.18.5 (Apache-2.0), Chart.js 4.4.1 (MIT). See `THIRD_PARTY_NOTICES.md`.
+These are bundled into the built pages:
+
+- JSZip 3.10.1 (MIT or GPLv3)
+- SheetJS Community Edition 0.18.5 (Apache-2.0)
+- Chart.js 4.4.1 (MIT), Reader only
+
+See `THIRD_PARTY_NOTICES.md`.
 
 QuantStudio is a trademark of Thermo Fisher Scientific. This project is not affiliated with or endorsed by Thermo Fisher Scientific.

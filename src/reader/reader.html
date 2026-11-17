@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>qPCR Reader for QuantStudio</title>
+<title>qPCR Reader · qPCR Workbench</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="theme-color" content="#16213e">
-<meta name="apple-mobile-web-app-title" content="qPCR Reader">
+<meta name="apple-mobile-web-app-title" content="qPCR Workbench">
 
 <style>
 :root{--bg:#ffffff;--ink:#1d2329;--muted:#5d6670;--line:#dde1e5;--panel:#f4f6f7;--accent:#1F3FD1;--warn:#9a5b00;--warnbg:#fff4e0;--pos:#0A7A44;--bad:#B0171F;color-scheme:light}
@@ -69,15 +69,16 @@ td.small{font-size:13px;color:var(--muted)}
 .ogroup{display:flex;flex-direction:column;gap:2px}.ogroup b{color:var(--ink);margin-bottom:2px}.ogroup label{display:flex;gap:4px;align-items:center;cursor:pointer}
 .ls{display:inline-block;width:20px;height:0;border-top:2px solid var(--ink);margin-right:4px}.ls1{border-top-style:dashed}.ls2{border-top-style:dotted}
 @media (max-width:720px){#intro,#intro.compact{grid-template-columns:1fr}.plot{height:360px}}
+.wbnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:13px;padding:0 0 12px;margin-bottom:16px;border-bottom:1px solid var(--line)}.wbnav b{font-weight:650;margin-right:4px}.wbnav a{color:var(--muted);text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}.wbnav a:hover{color:var(--ink)}.wbnav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent)}@media print{.wbnav{display:none}}
 </style>
 </head>
 <body>
 <main>
+<nav class="wbnav" aria-label="qPCR Workbench"><b>qPCR Workbench</b><a href="./index.html" aria-current="page">Reader</a><a href="./designer.html">Plate Designer</a></nav>
 <section id="intro">
   <div>
     <h1>qPCR Reader for QuantStudio</h1>
     <p>Open one or more QuantStudio runs to see plate layouts, amplification and multicomponent plots, Cts, QC flags and ΔCt, and to compare plates side by side. Files are read on this computer; nothing is uploaded.</p>
-    <p><a href="./designer.html" style="color:var(--accent)">Plan a plate and keep its protocol record → Plate Designer</a></p>
   </div>
   <div id="drop">
     <div>Drop run files here, or <label for="file">choose files</label></div>
@@ -179,13 +180,13 @@ td.small{font-size:13px;color:var(--muted)}
   </section>
 </div>
 
-<footer>qPCR Reader v2.0.0 · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
+<footer>qPCR Workbench v2.2.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>
 <script>/*CHARTJS*/</script>
 <script>/*CORE*/</script>
-<script>/*APP2*/</script>
+<script>/*READER*/</script>
 <script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>
 </html>
