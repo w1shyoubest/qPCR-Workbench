@@ -97,6 +97,14 @@ h3.sub{font-size:15px;margin:22px 0 8px}
 .rich blockquote{margin:6px 0;padding:2px 12px;border-left:3px solid var(--line);color:var(--muted)}
 .rich hr{border:none;border-top:1px solid var(--line);margin:12px 0}
 .rich sup,.rich sub{font-size:.75em;line-height:0}
+.ctitle{cursor:pointer;user-select:none;-webkit-user-select:none;border-radius:6px}.ctitle:hover .tri{border-top-color:var(--ink)}
+.ctitle .tri{display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--muted);margin:0 9px 0 1px;vertical-align:middle;position:relative;top:-2px;transition:transform .15s}
+.ctitle[aria-expanded="false"] .tri{transform:rotate(-90deg)}
+.ctitle .hidnote{display:none;margin-left:10px;font-size:12px;font-weight:400;color:var(--muted)}
+.ctitle[aria-expanded="false"] .hidnote{display:inline}
+.secbody.collapsed{display:none}h2.ctitle[aria-expanded="false"]{margin-bottom:0}.dhead:has(.ctitle[aria-expanded="false"]){margin-bottom:0}h2.ctitle[aria-expanded="false"]+.secbody+h2,.secbody.collapsed+h2,.secbody.collapsed+.dhead{margin-top:18px}body.reporting .secbody.collapsed{display:block}
+.secctl{display:flex;justify-content:flex-end;gap:6px;margin:10px 0 0}.secctl button{font-size:12px;padding:2px 8px;color:var(--muted)}
+@media print{.secbody.collapsed{display:block!important}.ctitle .tri,.ctitle .hidnote,.secctl{display:none!important}}
 @media (max-width:720px){#intro,#intro.compact{grid-template-columns:1fr}.plot{height:360px}}
 .wbnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:13px;padding:0 0 12px;margin-bottom:16px;border-bottom:1px solid var(--line)}.wbnav b{font-weight:650;margin-right:4px}.wbnav a{color:var(--muted);text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}.wbnav a:hover{color:var(--ink)}.wbnav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent)}@media print{.wbnav{display:none}}
 </style>
@@ -121,6 +129,7 @@ h3.sub{font-size:15px;margin:22px 0 8px}
   <div id="tabs" role="tablist"></div>
 
   <section id="plateview">
+  <div class="secctl"><button data-secall="1">Show all sections</button><button data-secall="0">Hide all sections</button></div>
   <div id="runinfo"></div>
   <div id="method"></div>
   <div id="warn" hidden></div>
@@ -243,7 +252,7 @@ h3.sub{font-size:15px;margin:22px 0 8px}
   </section>
 </div>
 
-<footer>qPCR Workbench v2.5.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
+<footer>qPCR Workbench v2.6.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>

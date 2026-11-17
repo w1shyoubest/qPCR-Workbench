@@ -82,7 +82,7 @@
   // ---------- render ----------
   function renderTabs() {
     $('#tabs').innerHTML = state.plates.map((p, i) => `<div class="tab${i === state.cur ? ' on' : ''}" role="tab" aria-selected="${i === state.cur}" data-i="${i}" tabindex="0">${esc(p.name || 'Untitled')}${state.plates.length > 1 ? `<button class="x" data-del="${i}" aria-label="Delete ${esc(p.name)}">×</button>` : ''}</div>`).join('') +
-      '<div class="tab add" data-add="1" tabindex="0">+ New plate</div><div class="tab add" data-dup="1" tabindex="0">Duplicate this plate</div>';
+      '<div class="tab add" data-add="1" tabindex="0">+ New plate</div><div class="tab add" data-dup="1" tabindex="0">Duplicate this plate</div><div class="tab add delall" data-delall="1" tabindex="0">Delete all plates</div>';
   }
   function renderPlate() {
     const p = P();
@@ -273,8 +273,13 @@
   // ---------- plate-level controls ----------
   $('#tabs').addEventListener('click', e => {
     const del = e.target.closest('[data-del]');
-    if (del) { const i = +del.dataset.del; if (!confirm(`Delete “${state.plates[i].name}” and its record? (Undo can bring it back.)`)) return; snap(); state.plates.splice(i, 1); state.cur = Math.max(0, Math.min(state.cur, state.plates.length - 1)); sel.clear(); renderAll(); persist(); return; }
+    if (del) { const i = +del.dataset.del; if (!confirm(`Delete “${state.plates[i].name}” and its record? (Undo can bring it back.)`)) return; snap(); state.plates.splice(i, 1); if (!state.plates.length) state.plates.push(newPlate('Plate 1', 96)); state.cur = Math.max(0, Math.min(state.cur, state.plates.length - 1)); sel.clear(); renderAll(); persist(); return; }
     const t = e.target.closest('.tab'); if (!t) return;
+    if (t.dataset.delall) {
+      const n = state.plates.length;
+      if (!confirm(`Delete all ${n} plate${n > 1 ? 's' : ''} in this browser, with their designs, protocol records and the results written in the Reader?\n\nUndo (⌘/Ctrl Z) brings them back while this page is open. Save a project file first if you want a permanent copy.`)) return;
+      snap(); state.plates = [newPlate('Plate 1', 96)]; state.cur = 0; sel.clear(); renderAll(); persist(); status(`Deleted ${n} plate${n > 1 ? 's' : ''}. Undo brings them back.`); return;
+    }
     if (t.dataset.add) { snap(); state.plates.push(newPlate('', P().fmt)); state.cur = state.plates.length - 1; }
     else if (t.dataset.dup) { snap(); const c = JSON.parse(JSON.stringify(P())); c.id = Math.random().toString(36).slice(2, 9); c.name = P().name + ' (copy)'; c.log = []; c.results = ''; c.meta.date = today(); c.meta.runFile = ''; state.plates.push(c); state.cur = state.plates.length - 1; }
     else state.cur = +t.dataset.i;
@@ -507,5 +512,7 @@
   function openFromHash() { const m = /plate=([^&]+)/.exec(location.hash); if (!m) return; const i = state.plates.findIndex(p => p.id === decodeURIComponent(m[1])); if (i >= 0 && i !== state.cur) { state.cur = i; sel.clear(); renderAll(); } }
   window.addEventListener('hashchange', openFromHash);
   openFromHash();
+  const secs = RICH.collapsible($('#sheet'), 'qpcr-designer-sections', ['Plate layout']);
+  document.querySelectorAll('[data-secall]').forEach(b => b.addEventListener('click', () => secs[b.dataset.secall === '1' ? 'expandAll' : 'collapseAll']()));
   renderAll();
 })();

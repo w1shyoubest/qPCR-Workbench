@@ -31,6 +31,8 @@ A typical plate, top to bottom:
    - thermal cycling program, with presets
    - dated log with quick steps (time optional)
 
+Click any section title (▼) to fold that section away; the plate layout always stays open, and **Show all / Hide all sections** sit above the page. **Delete all plates** (next to Duplicate this plate) clears the project in this browser; Undo brings it back.
+
 You can keep several plates in one project. Work autosaves in the browser, and **Save project file** writes a `.qpcrplan.json`; reopen that file to keep editing. To share or archive a record, use **Export** for this plate or all plates:
 
 - **Word (.docx)**: a real Word document with headings, tables, Ca²⁺-style formatting and a plate-map picture. It also opens in Google Docs and Pages.
@@ -60,6 +62,8 @@ You can keep several plates in one project. Work autosaves in the browser, and *
 - ΔCt, ΔΔCt and fold change against matched controls, with bar charts and error bars
 - Multi-plate comparison: run QC table with a per-plate calibrator, ΔCt across plates, overlaid curves
 - CSV and PNG exports
+
+Section titles fold away with a click (the curves always stay open), so you can jump to the part you need; the page remembers what you folded.
 
 Fold change assumes 100% amplification efficiency (2^ΔΔCt).
 

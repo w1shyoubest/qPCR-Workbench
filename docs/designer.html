@@ -39,6 +39,15 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .platehead{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:14px 0 4px}
 .platehead input.pname{font-size:19px;font-weight:600;border-color:transparent;padding:2px 6px;width:auto;flex:1 1 260px}
 .platehead input.pname:hover{border-color:var(--line)}
+.ctitle{cursor:pointer;user-select:none;-webkit-user-select:none;border-radius:6px}.ctitle:hover .tri{border-top-color:var(--ink)}
+.ctitle .tri{display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--muted);margin:0 9px 0 1px;vertical-align:middle;position:relative;top:-2px;transition:transform .15s}
+.ctitle[aria-expanded="false"] .tri{transform:rotate(-90deg)}
+.ctitle .hidnote{display:none;margin-left:10px;font-size:12px;font-weight:400;color:var(--muted)}
+.ctitle[aria-expanded="false"] .hidnote{display:inline}
+.secbody.collapsed{display:none}h2.ctitle[aria-expanded="false"]{margin-bottom:0}.dhead:has(.ctitle[aria-expanded="false"]){margin-bottom:0}h2.ctitle[aria-expanded="false"]+.secbody+h2,.secbody.collapsed+h2,.secbody.collapsed+.dhead{margin-top:18px}
+.secctl{display:flex;justify-content:flex-end;gap:6px;margin:10px 0 0}.secctl button{font-size:12px;padding:2px 8px;color:var(--muted)}
+@media print{.secbody.collapsed{display:block!important}.ctitle .tri,.ctitle .hidnote,.secctl{display:none!important}}
+.tab.add.delall{color:var(--bad)}
 .platebar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:var(--panel);border-radius:8px;padding:8px 12px;margin:0 0 12px}
 .resultsnote{margin:24px 0 0;padding:10px 14px;border:1px dashed var(--line);border-radius:8px}.resultsnote a{color:var(--accent)}
 .design{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
@@ -146,6 +155,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
 <div id="tabs" role="tablist"></div>
 
 <section id="sheet">
+  <div class="secctl noprint"><button data-secall="1">Show all sections</button><button data-secall="0">Hide all sections</button></div>
   <div class="platehead">
     <input class="pname" id="pname" aria-label="Plate name">
   </div>
@@ -265,7 +275,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   </div>
 </section>
 
-<footer class="noprint">qPCR Workbench v2.5.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
+<footer class="noprint">qPCR Workbench v2.6.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
 </main>
 <script>/*!
 
@@ -943,7 +953,33 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     return blk(d, 0).join('\n\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
   }
-  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd };
+
+  // ---------- collapsible sections: click a section title (h2) to hide or show what follows it ----------
+  // keep: titles that always stay open (the plate map, the curves). State is remembered per page.
+  function collapsible(root, storeKey, keep) {
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem(storeKey)) || {}; } catch (e) { /* no storage */ }
+    const all = [];
+    let body = null;
+    for (const el of [...root.children]) {
+      const h = el.tagName === 'H2' ? el : el.classList && el.classList.contains('dhead') ? el.querySelector('h2') : null;
+      if (h) {
+        const name = h.textContent.trim();
+        if ((keep || []).includes(name)) { body = null; continue; }
+        body = document.createElement('div'); body.className = 'secbody'; el.after(body);
+        const b = body, tri = document.createElement('span'); tri.className = 'tri'; tri.setAttribute('aria-hidden', 'true');
+        const note = document.createElement('span'); note.className = 'hidnote'; note.textContent = 'hidden · click to show';
+        h.prepend(tri); h.append(note); h.classList.add('ctitle'); h.tabIndex = 0; h.setAttribute('role', 'button');
+        const set = (open, remember) => { h.setAttribute('aria-expanded', open); b.classList.toggle('collapsed', !open); if (remember) { saved[name] = !open; try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (e) { /* no storage */ } } if (open) window.dispatchEvent(new Event('resize')); };
+        h.addEventListener('click', () => set(h.getAttribute('aria-expanded') !== 'true', true));
+        h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h.click(); } });
+        set(!saved[name], false); all.push(set);
+        continue;
+      }
+      if (body) body.appendChild(el);
+    }
+    return { expandAll: () => all.forEach(f => f(true, true)), collapseAll: () => all.forEach(f => f(false, true)) };
+  }
+  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd, collapsible };
 })();
 </script>
 <script>// Shared plate-map drawing for plate designs (used by the Plate Designer and, for linked designs, the Reader).
@@ -1131,7 +1167,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ---------- render ----------
   function renderTabs() {
     $('#tabs').innerHTML = state.plates.map((p, i) => `<div class="tab${i === state.cur ? ' on' : ''}" role="tab" aria-selected="${i === state.cur}" data-i="${i}" tabindex="0">${esc(p.name || 'Untitled')}${state.plates.length > 1 ? `<button class="x" data-del="${i}" aria-label="Delete ${esc(p.name)}">×</button>` : ''}</div>`).join('') +
-      '<div class="tab add" data-add="1" tabindex="0">+ New plate</div><div class="tab add" data-dup="1" tabindex="0">Duplicate this plate</div>';
+      '<div class="tab add" data-add="1" tabindex="0">+ New plate</div><div class="tab add" data-dup="1" tabindex="0">Duplicate this plate</div><div class="tab add delall" data-delall="1" tabindex="0">Delete all plates</div>';
   }
   function renderPlate() {
     const p = P();
@@ -1322,8 +1358,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ---------- plate-level controls ----------
   $('#tabs').addEventListener('click', e => {
     const del = e.target.closest('[data-del]');
-    if (del) { const i = +del.dataset.del; if (!confirm(`Delete “${state.plates[i].name}” and its record? (Undo can bring it back.)`)) return; snap(); state.plates.splice(i, 1); state.cur = Math.max(0, Math.min(state.cur, state.plates.length - 1)); sel.clear(); renderAll(); persist(); return; }
+    if (del) { const i = +del.dataset.del; if (!confirm(`Delete “${state.plates[i].name}” and its record? (Undo can bring it back.)`)) return; snap(); state.plates.splice(i, 1); if (!state.plates.length) state.plates.push(newPlate('Plate 1', 96)); state.cur = Math.max(0, Math.min(state.cur, state.plates.length - 1)); sel.clear(); renderAll(); persist(); return; }
     const t = e.target.closest('.tab'); if (!t) return;
+    if (t.dataset.delall) {
+      const n = state.plates.length;
+      if (!confirm(`Delete all ${n} plate${n > 1 ? 's' : ''} in this browser, with their designs, protocol records and the results written in the Reader?\n\nUndo (⌘/Ctrl Z) brings them back while this page is open. Save a project file first if you want a permanent copy.`)) return;
+      snap(); state.plates = [newPlate('Plate 1', 96)]; state.cur = 0; sel.clear(); renderAll(); persist(); status(`Deleted ${n} plate${n > 1 ? 's' : ''}. Undo brings them back.`); return;
+    }
     if (t.dataset.add) { snap(); state.plates.push(newPlate('', P().fmt)); state.cur = state.plates.length - 1; }
     else if (t.dataset.dup) { snap(); const c = JSON.parse(JSON.stringify(P())); c.id = Math.random().toString(36).slice(2, 9); c.name = P().name + ' (copy)'; c.log = []; c.results = ''; c.meta.date = today(); c.meta.runFile = ''; state.plates.push(c); state.cur = state.plates.length - 1; }
     else state.cur = +t.dataset.i;
@@ -1556,6 +1597,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function openFromHash() { const m = /plate=([^&]+)/.exec(location.hash); if (!m) return; const i = state.plates.findIndex(p => p.id === decodeURIComponent(m[1])); if (i >= 0 && i !== state.cur) { state.cur = i; sel.clear(); renderAll(); } }
   window.addEventListener('hashchange', openFromHash);
   openFromHash();
+  const secs = RICH.collapsible($('#sheet'), 'qpcr-designer-sections', ['Plate layout']);
+  document.querySelectorAll('[data-secall]').forEach(b => b.addEventListener('click', () => secs[b.dataset.secall === '1' ? 'expandAll' : 'collapseAll']()));
   renderAll();
 })();
 </script>

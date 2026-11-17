@@ -97,6 +97,14 @@ h3.sub{font-size:15px;margin:22px 0 8px}
 .rich blockquote{margin:6px 0;padding:2px 12px;border-left:3px solid var(--line);color:var(--muted)}
 .rich hr{border:none;border-top:1px solid var(--line);margin:12px 0}
 .rich sup,.rich sub{font-size:.75em;line-height:0}
+.ctitle{cursor:pointer;user-select:none;-webkit-user-select:none;border-radius:6px}.ctitle:hover .tri{border-top-color:var(--ink)}
+.ctitle .tri{display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--muted);margin:0 9px 0 1px;vertical-align:middle;position:relative;top:-2px;transition:transform .15s}
+.ctitle[aria-expanded="false"] .tri{transform:rotate(-90deg)}
+.ctitle .hidnote{display:none;margin-left:10px;font-size:12px;font-weight:400;color:var(--muted)}
+.ctitle[aria-expanded="false"] .hidnote{display:inline}
+.secbody.collapsed{display:none}h2.ctitle[aria-expanded="false"]{margin-bottom:0}.dhead:has(.ctitle[aria-expanded="false"]){margin-bottom:0}h2.ctitle[aria-expanded="false"]+.secbody+h2,.secbody.collapsed+h2,.secbody.collapsed+.dhead{margin-top:18px}body.reporting .secbody.collapsed{display:block}
+.secctl{display:flex;justify-content:flex-end;gap:6px;margin:10px 0 0}.secctl button{font-size:12px;padding:2px 8px;color:var(--muted)}
+@media print{.secbody.collapsed{display:block!important}.ctitle .tri,.ctitle .hidnote,.secctl{display:none!important}}
 @media (max-width:720px){#intro,#intro.compact{grid-template-columns:1fr}.plot{height:360px}}
 .wbnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:13px;padding:0 0 12px;margin-bottom:16px;border-bottom:1px solid var(--line)}.wbnav b{font-weight:650;margin-right:4px}.wbnav a{color:var(--muted);text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}.wbnav a:hover{color:var(--ink)}.wbnav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent)}@media print{.wbnav{display:none}}
 </style>
@@ -121,6 +129,7 @@ h3.sub{font-size:15px;margin:22px 0 8px}
   <div id="tabs" role="tablist"></div>
 
   <section id="plateview">
+  <div class="secctl"><button data-secall="1">Show all sections</button><button data-secall="0">Hide all sections</button></div>
   <div id="runinfo"></div>
   <div id="method"></div>
   <div id="warn" hidden></div>
@@ -243,7 +252,7 @@ h3.sub{font-size:15px;margin:22px 0 8px}
   </section>
 </div>
 
-<footer>qPCR Workbench v2.5.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
+<footer>qPCR Workbench v2.6.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
 </main>
 <script>/*!
 
@@ -936,7 +945,33 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     return blk(d, 0).join('\n\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
   }
-  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd };
+
+  // ---------- collapsible sections: click a section title (h2) to hide or show what follows it ----------
+  // keep: titles that always stay open (the plate map, the curves). State is remembered per page.
+  function collapsible(root, storeKey, keep) {
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem(storeKey)) || {}; } catch (e) { /* no storage */ }
+    const all = [];
+    let body = null;
+    for (const el of [...root.children]) {
+      const h = el.tagName === 'H2' ? el : el.classList && el.classList.contains('dhead') ? el.querySelector('h2') : null;
+      if (h) {
+        const name = h.textContent.trim();
+        if ((keep || []).includes(name)) { body = null; continue; }
+        body = document.createElement('div'); body.className = 'secbody'; el.after(body);
+        const b = body, tri = document.createElement('span'); tri.className = 'tri'; tri.setAttribute('aria-hidden', 'true');
+        const note = document.createElement('span'); note.className = 'hidnote'; note.textContent = 'hidden · click to show';
+        h.prepend(tri); h.append(note); h.classList.add('ctitle'); h.tabIndex = 0; h.setAttribute('role', 'button');
+        const set = (open, remember) => { h.setAttribute('aria-expanded', open); b.classList.toggle('collapsed', !open); if (remember) { saved[name] = !open; try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (e) { /* no storage */ } } if (open) window.dispatchEvent(new Event('resize')); };
+        h.addEventListener('click', () => set(h.getAttribute('aria-expanded') !== 'true', true));
+        h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h.click(); } });
+        set(!saved[name], false); all.push(set);
+        continue;
+      }
+      if (body) body.appendChild(el);
+    }
+    return { expandAll: () => all.forEach(f => f(true, true)), collapseAll: () => all.forEach(f => f(false, true)) };
+  }
+  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd, collapsible };
 })();
 </script>
 <script>// Shared plate-map drawing for plate designs (used by the Plate Designer and, for linked designs, the Reader).
@@ -1590,9 +1625,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   async function buildReport() {
     const list = $('#rscope').value === 'all' ? plates.slice() : [cur()], back = active, images = [], parts = [];
     document.documentElement.dataset.theme = 'light';
+    document.body.classList.add('reporting');
     try {
       for (const P of list) { active = P.id; render(); await nextFrame(); parts.push(await reportFor(P, images)); }
-    } finally { delete document.documentElement.dataset.theme; active = back; render(); }
+    } finally { delete document.documentElement.dataset.theme; document.body.classList.remove('reporting'); active = back; render(); }
     const first = designFor(list[0]);
     return { parts, images, name: safeName(list.length > 1 ? 'qPCR_report_' + list.length + '_runs' : (first ? first.name : list[0].name) + '_report') };
   }
@@ -1611,6 +1647,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     try { const r = await buildReport(); alertStatus('In the print dialog, choose “Save as PDF”.'); await RICH.printHTML(r.name, r.parts); }
     catch (err) { alertStatus('Could not make the report: ' + (err.message || err)); }
   });
+  // section titles fold away; the curves always stay
+  const secs = [RICH.collapsible($('#plateview'), 'qpcr-reader-sections', ['Curves']), RICH.collapsible($('#compareview'), 'qpcr-reader-sections-cmp', ['Overlay curves from different plates'])];
+  document.querySelectorAll('[data-secall]').forEach(b => b.addEventListener('click', () => secs[0][b.dataset.secall === '1' ? 'expandAll' : 'collapseAll']()));
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (plates.length) render(); });
 })();
 </script>

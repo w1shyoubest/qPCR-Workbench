@@ -405,5 +405,31 @@
     }
     return blk(d, 0).join('\n\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
   }
-  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd };
+
+  // ---------- collapsible sections: click a section title (h2) to hide or show what follows it ----------
+  // keep: titles that always stay open (the plate map, the curves). State is remembered per page.
+  function collapsible(root, storeKey, keep) {
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem(storeKey)) || {}; } catch (e) { /* no storage */ }
+    const all = [];
+    let body = null;
+    for (const el of [...root.children]) {
+      const h = el.tagName === 'H2' ? el : el.classList && el.classList.contains('dhead') ? el.querySelector('h2') : null;
+      if (h) {
+        const name = h.textContent.trim();
+        if ((keep || []).includes(name)) { body = null; continue; }
+        body = document.createElement('div'); body.className = 'secbody'; el.after(body);
+        const b = body, tri = document.createElement('span'); tri.className = 'tri'; tri.setAttribute('aria-hidden', 'true');
+        const note = document.createElement('span'); note.className = 'hidnote'; note.textContent = 'hidden · click to show';
+        h.prepend(tri); h.append(note); h.classList.add('ctitle'); h.tabIndex = 0; h.setAttribute('role', 'button');
+        const set = (open, remember) => { h.setAttribute('aria-expanded', open); b.classList.toggle('collapsed', !open); if (remember) { saved[name] = !open; try { localStorage.setItem(storeKey, JSON.stringify(saved)); } catch (e) { /* no storage */ } } if (open) window.dispatchEvent(new Event('resize')); };
+        h.addEventListener('click', () => set(h.getAttribute('aria-expanded') !== 'true', true));
+        h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h.click(); } });
+        set(!saved[name], false); all.push(set);
+        continue;
+      }
+      if (body) body.appendChild(el);
+    }
+    return { expandAll: () => all.forEach(f => f(true, true)), collapseAll: () => all.forEach(f => f(false, true)) };
+  }
+  window.RICH = { esc, sanitize, textToHtml, mdToHtml, mathInHtml, mathUnicode, looksMd, setupRich, docxFrom, printHTML, REPORT_CSS, htmlToMd, collapsible };
 })();

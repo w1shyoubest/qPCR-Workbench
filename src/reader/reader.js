@@ -548,9 +548,10 @@
   async function buildReport() {
     const list = $('#rscope').value === 'all' ? plates.slice() : [cur()], back = active, images = [], parts = [];
     document.documentElement.dataset.theme = 'light';
+    document.body.classList.add('reporting');
     try {
       for (const P of list) { active = P.id; render(); await nextFrame(); parts.push(await reportFor(P, images)); }
-    } finally { delete document.documentElement.dataset.theme; active = back; render(); }
+    } finally { delete document.documentElement.dataset.theme; document.body.classList.remove('reporting'); active = back; render(); }
     const first = designFor(list[0]);
     return { parts, images, name: safeName(list.length > 1 ? 'qPCR_report_' + list.length + '_runs' : (first ? first.name : list[0].name) + '_report') };
   }
@@ -569,5 +570,8 @@
     try { const r = await buildReport(); alertStatus('In the print dialog, choose “Save as PDF”.'); await RICH.printHTML(r.name, r.parts); }
     catch (err) { alertStatus('Could not make the report: ' + (err.message || err)); }
   });
+  // section titles fold away; the curves always stay
+  const secs = [RICH.collapsible($('#plateview'), 'qpcr-reader-sections', ['Curves']), RICH.collapsible($('#compareview'), 'qpcr-reader-sections-cmp', ['Overlay curves from different plates'])];
+  document.querySelectorAll('[data-secall]').forEach(b => b.addEventListener('click', () => secs[0][b.dataset.secall === '1' ? 'expandAll' : 'collapseAll']()));
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (plates.length) render(); });
 })();
