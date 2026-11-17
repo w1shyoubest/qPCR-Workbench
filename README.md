@@ -17,7 +17,7 @@ Two browser tools for qPCR on Applied Biosystems QuantStudio instruments, built 
 
 A typical plate, top to bottom:
 
-1. **Design**: experiment details (date, operator, instrument, block, chemistry, run file) and a design sheet for the purpose, samples and experiment. The design sheet is a rich-text box with headings, lists and editable tables. Tab moves between table cells, and pasting from Google Docs or Excel keeps tables. New plates start with a Purpose / Samples / Experiment / Controls outline.
+1. **Design**: experiment details (date, operator, instrument, block, chemistry, run file) and a design sheet for the purpose, samples and experiment. The design sheet is a rich-text box with headings, lists and editable tables. Tab moves between table cells, and pasting from Google Docs or Excel keeps tables. New plates start with a Purpose / Samples / Experiment / Controls outline. Markdown works: type `# `, `- ` or `1. ` at the start of a line, or `**bold**`, or paste Markdown including `| tables |`. **Format Markdown** converts Markdown already in the box. LaTeX-style symbols become proper characters, as you type and in pasted text: `$\text{Ca}^{2+}$` → Ca²⁺, `$\text{CaCl}_2$` → CaCl₂, and `\mu`, `\pm`, `\times`, `\Delta`, `^\circ` → µ, ±, ×, Δ, °. Plain `Ca2+`, `Mg2+` and similar ions become Ca²⁺ and Mg²⁺ too. In single-line fields such as log entries and well notes, the same symbols become Unicode characters.
 2. **Plate layout**: a 96- or 384-well map.
    - To select wells, click one, drag across several, Shift-click, or click a row letter or column number.
    - For the selection, set sample, target(s), task, reporter, quencher, quantity, group, template and a note. Multiplex wells take several targets separated by commas.

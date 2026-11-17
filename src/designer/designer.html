@@ -93,6 +93,10 @@ table.edit .rm{border:none;background:none;color:var(--muted);padding:2px 6px;fo
 .rich td,.rich th{border:1px solid var(--line);padding:4px 8px;min-width:60px;vertical-align:top;text-align:left}
 .rich th{background:var(--panel);color:var(--ink);white-space:normal}
 .rich a{color:var(--accent)}
+.rich code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel);padding:1px 4px;border-radius:4px}
+.rich blockquote{margin:6px 0;padding:2px 12px;border-left:3px solid var(--line);color:var(--muted)}
+.rich hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+.rich sup,.rich sub{font-size:.75em;line-height:0}
 footer{margin-top:40px;color:var(--muted);font-size:13px}
 @media (max-width:900px){.design{grid-template-columns:1fr}.log li{grid-template-columns:1fr 30px}.log li>*:nth-child(n+2):not(:last-child){grid-column:1}}
 @media print{
@@ -151,7 +155,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   <h2>Design</h2>
   <p class="hint noprint" style="margin-top:-6px">What this plate is for, which samples went in, and what was done to them. Type freely, add tables, or paste from Docs or Excel.</p>
   <div class="meta" id="meta"></div>
-  <div class="richbox" data-rich="design" data-ph="Purpose of this plate, samples used, experiment performed…"></div>
+  <div class="richbox" data-rich="design" data-ph="Purpose of this plate, samples used, experiment performed… Markdown and $\text{Ca}^{2+}$-style symbols work."></div>
 
   <h2>Plate layout</h2>
   <div class="design">

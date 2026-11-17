@@ -50,13 +50,13 @@
   try { const s = JSON.parse(localStorage.getItem(STORE)); if (s && s.plates && s.plates.length) state = s; } catch (e) { /* no storage */ }
   // ---------- rich text (design sheet, results): only a small, safe subset of HTML is ever kept ----------
   const KEEP = { P: 'p', DIV: 'div', BR: 'br', B: 'strong', STRONG: 'strong', I: 'em', EM: 'em', U: 'u', H1: 'h3', H2: 'h3', H3: 'h3', H4: 'h4', H5: 'h4', H6: 'h4',
-    UL: 'ul', OL: 'ol', LI: 'li', TABLE: 'table', THEAD: 'thead', TBODY: 'tbody', TFOOT: 'tbody', TR: 'tr', TH: 'th', TD: 'td', SUB: 'sub', SUP: 'sup', A: 'a', BLOCKQUOTE: 'blockquote' };
+    UL: 'ul', OL: 'ol', LI: 'li', TABLE: 'table', THEAD: 'thead', TBODY: 'tbody', TFOOT: 'tbody', TR: 'tr', TH: 'th', TD: 'td', SUB: 'sub', SUP: 'sup', A: 'a', BLOCKQUOTE: 'blockquote', CODE: 'code', HR: 'hr', S: 's', DEL: 's' };
   const DROP = /^(SCRIPT|STYLE|META|TITLE|LINK|COLGROUP|COL|HEAD|svg|IMG|IFRAME|OBJECT|EMBED|TEMPLATE|NOSCRIPT|FORM|INPUT|BUTTON|SELECT|TEXTAREA)$/i;
   function sanitize(html) {
     const src = new DOMParser().parseFromString('<body>' + (html || '') + '</body>', 'text/html').body, out = document.createElement('div');
     (function walk(from, to) {
       for (const n of [...from.childNodes]) {
-        if (n.nodeType === 3) { to.appendChild(document.createTextNode(n.nodeValue)); continue; }
+        if (n.nodeType === 3) { to.appendChild(document.createTextNode(n.nodeValue.replace(/\u200b/g, ''))); continue; }
         if (n.nodeType !== 1 || DROP.test(n.tagName)) continue;
         const st = (n.getAttribute('style') || '').toLowerCase();
         let tag = KEEP[n.tagName];
@@ -71,6 +71,93 @@
     })(src, out);
     const h = out.innerHTML.trim();
     return /^(<(p|div)>)?(<br>)?(<\/(p|div)>)?$/.test(h) ? '' : h;
+  }
+  // ---------- LaTeX-style math ($\text{Ca}^{2+}$ → Ca²⁺) and Markdown ----------
+  const TEX = { times: '×', pm: '±', mp: '∓', mu: 'µ', micro: 'µ', alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', Delta: 'Δ', epsilon: 'ε', kappa: 'κ', lambda: 'λ', pi: 'π', sigma: 'σ', Sigma: 'Σ', tau: 'τ', omega: 'ω', Omega: 'Ω', chi: 'χ',
+    sim: '~', approx: '≈', simeq: '≃', leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', ll: '≪', gg: '≫', propto: '∝', to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', Rightarrow: '⇒', uparrow: '↑', downarrow: '↓',
+    cdot: '·', bullet: '•', degree: '°', circ: '°', infty: '∞', prime: '′', partial: '∂', sqrt: '√', sum: 'Σ', percent: '%', ',': ' ', ';': ' ', ':': ' ', ' ': ' ', quad: ' ', qquad: '  ', '%': '%', '$': '$', '&': '&', '#': '#', '_': '_', '{': '{', '}': '}' };
+  const SUPC = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', '+': '⁺', '-': '⁻', '−': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', n: 'ⁿ', i: 'ⁱ', '°': '°' };
+  const SUBC = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉', '+': '₊', '-': '₋', '−': '₋', '=': '₌', '(': '₍', ')': '₎' };
+  // parse the inside of $...$; html=true gives <sup>/<sub>, html=false gives Unicode characters for plain-text fields
+  function tex(src, html) {
+    let i = 0;
+    const group = () => { // {…} or a single token
+      while (src[i] === ' ') i++;
+      if (src[i] === '{') { let d = 1, j = i + 1; while (j < src.length && d) { if (src[j] === '{') d++; else if (src[j] === '}') d--; j++; } const inner = src.slice(i + 1, j - 1); i = j; return tex(inner, html); }
+      if (src[i] === '\\') return command();
+      const c = src[i++] || ''; return html ? esc(c) : c;
+    };
+    const command = () => {
+      i++; const m = /^([A-Za-z]+|.)/.exec(src.slice(i)); if (!m) return '\\'; i += m[1].length; const name = m[1];
+      if (/^(text|mathrm|textrm|mathit|textit|mathbf|textbf|operatorname|mbox)$/.test(name)) { const g = group(); return html && /bf$/.test(name) ? `<strong>${g}</strong>` : html && /it$/.test(name) ? `<em>${g}</em>` : g; }
+      if (name === 'frac') { const a = group(), b = group(); return a + '/' + b; }
+      if (name === 'ce') return group();
+      if (name in TEX) return html ? esc(TEX[name]) : TEX[name];
+      return html ? esc('\\' + name) : '\\' + name;
+    };
+    const script = (map, tag) => { const g = group(); if (html) return `<${tag}>${g}</${tag}>`; const chars = [...g]; return chars.every(c => map[c]) ? chars.map(c => map[c]).join('') : (tag === 'sup' ? '^' : '_') + (chars.length > 1 ? '(' + g + ')' : g); };
+    let out = '';
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '\\') out += command();
+      else if (c === '^') { i++; while (src[i] === ' ') i++; if (src.slice(i, i + 5) === '\\circ') { i += 5; out += '°'; } else if (src.slice(i, i + 6) === '{\\circ') { i = src.indexOf('}', i) + 1; out += '°'; } else out += script(SUPC, 'sup'); }
+      else if (c === '_') { i++; out += script(SUBC, 'sub'); }
+      else if (c === '{' || c === '}') i++;
+      else if (c === '~') { out += ' '; i++; }
+      else if (c === '-') { out += '−'; i++; }
+      else { out += html ? esc(c) : c; i++; }
+    }
+    return out;
+  }
+  // $...$ counts as math only when it looks like math (a backslash, ^, _ or {), so "$5 and $10" stays as text
+  const MATH = /\$\$?([^$\n]*?[\\^_{][^$\n]*?|[-+=<>~±]{1,3})\$?\$/g;
+  const MATH1 = /\$\$?([^$\n]*?[\\^_{][^$\n]*?|[-+=<>~±]{1,3})\$?\$/;
+  const ION = /\b(Ca|Mg|Mn|Zn|Fe|Cu|Co|Ni|Cd|Sr|Ba|Hg|Pb)([23])\+(?![\w+])/g;
+  const mathUnicode = t => String(t).replace(MATH, (_, m) => tex(m, false)).replace(ION, (_, el, n) => el + SUPC[n] + '⁺');
+  function inlineMd(t) {
+    const keep = [];
+    const stash = h => '\u0000' + (keep.push(h) - 1) + '\u0000';
+    let x = String(t).replace(/`([^`\n]+)`/g, (_, c) => stash('<code>' + esc(c) + '</code>')).replace(MATH, (_, m) => stash(tex(m, true)));
+    x = esc(x).replace(ION, '$1<sup>$2+</sup>')
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, a, h) => `<a href="${h}" target="_blank" rel="noopener">${a}</a>`)
+      .replace(/\*\*(?=\S)([^*\n]*?\S)\*\*/g, '<strong>$1</strong>').replace(/__(?=\S)([^_\n]*?\S)__/g, '<strong>$1</strong>')
+      .replace(/(^|[^*\w])\*(?=\S)([^*\n]*?\S)\*(?!\*)/g, '$1<em>$2</em>')
+      .replace(/~~(?=\S)([^~\n]*?\S)~~/g, '<s>$1</s>');
+    return x.replace(/\u0000(\d+)\u0000/g, (_, k) => keep[+k]);
+  }
+  const looksMd = t => /(^|\n)\s{0,3}(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|\|.*\|)|\*\*[^*]+\*\*|\$[^$\n]*[\\^_{][^$\n]*\$|`[^`]+`|\[[^\]]+\]\(https?:/.test(t);
+  function mdToHtml(text) {
+    const L = String(text || '').replace(/\r\n?/g, '\n').split('\n'), out = []; let i = 0;
+    const cells = l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+    while (i < L.length) {
+      const l = L[i];
+      if (!l.trim()) { i++; continue; }
+      let m;
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < L.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(L[i + 1])) {
+        const head = cells(l); i += 2; const rows = [];
+        while (i < L.length && /^\s*\|.*\|\s*$/.test(L[i])) rows.push(cells(L[i++]));
+        out.push('<table><thead><tr>' + head.map(c => `<th>${inlineMd(c)}</th>`).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + head.map((_, k) => `<td>${r[k] ? inlineMd(r[k]) : '<br>'}</td>`).join('') + '</tr>').join('') + '</tbody></table>');
+        continue;
+      }
+      if ((m = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l))) { out.push(m[1].length <= 2 ? `<h3>${inlineMd(m[2])}</h3>` : `<h4>${inlineMd(m[2])}</h4>`); i++; continue; }
+      if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+      const list = (re, tag) => { const items = []; while (i < L.length && re.test(L[i])) { let it = L[i].replace(re, ''); i++; while (i < L.length && L[i].trim() && /^\s{2,}\S/.test(L[i]) && !re.test(L[i])) it += ' ' + L[i++].trim(); items.push(`<li>${inlineMd(it)}</li>`); } out.push(`<${tag}>${items.join('')}</${tag}>`); };
+      if (/^\s*[-*+•]\s+/.test(l)) { list(/^\s*[-*+•]\s+/, 'ul'); continue; }
+      if (/^\s*\d+[.)]\s+/.test(l)) { list(/^\s*\d+[.)]\s+/, 'ol'); continue; }
+      if (/^\s*>\s?/.test(l)) { const q = []; while (i < L.length && /^\s*>\s?/.test(L[i])) q.push(L[i++].replace(/^\s*>\s?/, '')); out.push('<blockquote>' + q.map(inlineMd).join('<br>') + '</blockquote>'); continue; }
+      const para = []; while (i < L.length && L[i].trim() && !/^\s{0,3}(#{1,6}\s|[-*+•]\s|\d+[.)]\s|>)/.test(L[i]) && !/^\s*\|.*\|\s*$/.test(L[i])) para.push(L[i++]);
+      if (!para.length) para.push(L[i++]);
+      out.push('<p>' + para.map(inlineMd).join('<br>') + '</p>');
+    }
+    return out.join('');
+  }
+  // convert math inside the text of already-formatted HTML (e.g. pasted from a web page that left $…$ as text)
+  function mathInHtml(html) {
+    if (!/\$[^$]*[\\^_{]/.test(html) && !ION.test(html)) { ION.lastIndex = 0; return html; } ION.lastIndex = 0;
+    const d = document.createElement('div'); d.innerHTML = html;
+    const w = document.createTreeWalker(d, NodeFilter.SHOW_TEXT), nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+    nodes.forEach(n => { const hasIon = ION.test(n.nodeValue); ION.lastIndex = 0; if (!MATH1.test(n.nodeValue) && !hasIon) return; const s = document.createElement('span'); s.innerHTML = esc(n.nodeValue).replace(MATH, (_, m) => tex(m.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'), true)).replace(ION, '$1<sup>$2+</sup>'); n.replaceWith(...s.childNodes); });
+    return d.innerHTML;
   }
   function textToHtml(t) {
     const bullet = /^\s*[•\-*]\s+/;
@@ -214,6 +301,8 @@
       while (j + 1 < list.length) { const b = split(list[j + 1]); if (b.r === a.r && b.c === split(list[j]).c + 1) j++; else break; }
       out.push(j > i ? `${list[i]}–${list[j]}` : list[i]); i = j + 1;
     }
+    // a single column run (A1, B1, C1) reads better as A1–C1
+    if (out.length > 2 && out.every(x => !x.includes('–'))) { const S = list.map(split); if (S.every(q => q.c === S[0].c) && S.every((q, k) => !k || q.r === S[k - 1].r + 1)) return `${list[0]}–${list[list.length - 1]}`; }
     return out.join(', ');
   }
 
@@ -445,6 +534,50 @@
     delRow(c) { const t = c.closest('table'), tr = c.parentNode, next = tr.nextElementSibling || tr.previousElementSibling; tr.remove(); if (!t.rows.length) { t.remove(); return null; } return next && next.cells[0]; },
     delCol(c) { const t = c.closest('table'), i = c.cellIndex; [...t.rows].forEach(r => r.cells[i] && r.cells[i].remove()); if (![...t.rows].some(r => r.cells.length)) { t.remove(); return null; } return t.rows[0].cells[Math.max(0, i - 1)]; }
   };
+  // block of the caret: the nearest p/div/h*/li/td directly holding text
+  function blockOf(ed) { const s = getSelection(); if (!s.rangeCount) return null; let n = s.anchorNode; while (n && n !== ed && !(n.nodeType === 1 && /^(P|DIV|H3|H4|LI|TD|TH|BLOCKQUOTE)$/.test(n.tagName))) n = n.parentNode; return n; }
+  function autoFormat(ed, ch) {
+    const s = getSelection(); if (!s.rangeCount || !s.isCollapsed) return;
+    const node = s.anchorNode, off = s.anchorOffset; if (!node || node.nodeType !== 3) return;
+    const before = node.nodeValue.slice(0, off);
+    // block shortcuts at the start of a line: "# ", "## ", "- ", "* ", "1. ", "> "
+    if (ch === ' ') {
+      const blk = blockOf(ed), atStart = blk && blk !== ed ? (() => { const r = document.createRange(); r.setStart(blk, 0); r.setEnd(node, off); return r.toString(); })() : before;
+      const m = /^(#{1,6}|[-*+]|\d+[.)]|>)\s$/.exec(atStart.replace(/ /g, ' '));
+      if (m && (!blk || blk === ed || /^(P|DIV)$/.test(blk.tagName))) {
+        const r = document.createRange(); r.setStart(node, off - m[0].length); r.setEnd(node, off); s.removeAllRanges(); s.addRange(r); document.execCommand('delete');
+        const k = m[1];
+        if (k[0] === '#') document.execCommand('formatBlock', false, k.length <= 2 ? 'h3' : 'h4');
+        else if (k === '>') document.execCommand('formatBlock', false, 'blockquote');
+        else document.execCommand(/\d/.test(k) ? 'insertOrderedList' : 'insertUnorderedList');
+        return;
+      }
+    }
+    // inline: $math$, **bold**, *italic*, `code` — converted as soon as the closing mark is typed
+    const pats = [[/\$([^$\n]*[\\^_{][^$\n]*)\$$/, m => tex(m[1], true)], [/\*\*(?=\S)([^*\n]*?\S)\*\*$/, m => `<strong>${esc(m[1])}</strong>`],
+      [/(?:^|[^*\w])\*(?=\S)([^*\n]*?\S)\*$/, m => `<em>${esc(m[1])}</em>`, 1], [/`([^`\n]+)`$/, m => `<code>${esc(m[1])}</code>`]];
+    if (ch === '+') { const m = /\b(Ca|Mg|Mn|Zn|Fe|Cu|Co|Ni|Cd|Sr|Ba|Hg|Pb)([23])\+$/.exec(before); if (m) { const r = document.createRange(); r.setStart(node, off - m[2].length - 1); r.setEnd(node, off); s.removeAllRanges(); s.addRange(r); document.execCommand('insertHTML', false, `<sup>${m[2]}+</sup>\u200b`); } return; }
+    if (!'$*`'.includes(ch)) return;
+    for (const [re, fn, lead] of pats) {
+      const m = re.exec(before.replace(/ /g, ' ')); if (!m) continue;
+      const start = off - m[0].length + (lead && !m[0].startsWith('*') ? 1 : 0);
+      const r = document.createRange(); r.setStart(node, start); r.setEnd(node, off); s.removeAllRanges(); s.addRange(r);
+      document.execCommand('insertHTML', false, fn(m) + '​');
+      return;
+    }
+  }
+  // "Format Markdown": plain-text blocks are re-read as Markdown; math in any text is converted
+  function formatMarkdown(ed) {
+    const parts = [];
+    for (const n of [...ed.childNodes]) {
+      const plain = n.nodeType === 3 || (n.nodeType === 1 && /^(P|DIV)$/.test(n.tagName) && ![...n.querySelectorAll('*')].some(c => c.tagName !== 'BR'));
+      if (plain) { const t = n.nodeType === 3 ? n.nodeValue : n.innerHTML.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); parts.push({ md: t }); }
+      else parts.push({ html: n.nodeType === 1 ? n.outerHTML : '' });
+    }
+    // neighbouring plain blocks are joined so multi-line tables and lists survive
+    const merged = []; parts.forEach(p => { const last = merged[merged.length - 1]; if (p.md != null && last && last.md != null) last.md += '\n' + p.md; else merged.push({ ...p }); });
+    ed.innerHTML = sanitize(merged.map(p => p.md != null ? mdToHtml(p.md) : mathInHtml(p.html)).join(''));
+  }
   function setupRich(box) {
     const key = box.dataset.rich;
     box.innerHTML = `<div class="tb noprint" role="toolbar" aria-label="Formatting">
@@ -454,10 +587,10 @@
       <span class="sep"></span><button data-cmd="table" title="Insert a table">Table</button>
       <button data-t="rowAfter" title="Add a row below">+ Row</button><button data-t="colAfter" title="Add a column to the right">+ Column</button>
       <button data-t="delRow" title="Delete this row">− Row</button><button data-t="delCol" title="Delete this column">− Column</button>
-      <span class="sep"></span><button data-cmd="removeFormat" title="Clear formatting">Clear format</button><button data-cmd="outline" title="Insert section headings">Outline</button></div>
+      <span class="sep"></span><button data-cmd="removeFormat" title="Clear formatting">Clear format</button><button data-cmd="outline" title="Insert section headings">Outline</button><button data-cmd="markdown" title="Turn Markdown and $…$ math typed in this box into formatting">Format Markdown</button></div>
       <div class="rich" contenteditable="true" spellcheck="true" data-key="${key}" data-ph="${esc(box.dataset.ph)}" role="textbox" aria-multiline="true" aria-label="${key === 'design' ? 'Design sheet' : 'Results and conclusions'}"></div>`;
     const ed = box.querySelector('.rich'), tb = box.querySelector('.tb');
-    const save = () => { const h = ed.innerHTML.trim(); P()[key] = /^(<br>|<p><br><\/p>|<div><br><\/div>)?$/.test(h) ? '' : h; persist(); };
+    const save = () => { P()[key] = sanitize(ed.innerHTML); persist(); };
     const sync = () => { const c = cellAtCaret(ed); tb.querySelectorAll('[data-t]').forEach(b => b.disabled = !c); };
     tb.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
     tb.addEventListener('click', e => {
@@ -466,12 +599,14 @@
       if (document.activeElement !== ed && cmd !== 'outline') { ed.focus(); caretInto(ed); }
       if (cmd === 'h3' || cmd === 'p') document.execCommand('formatBlock', false, cmd);
       else if (cmd === 'table') { const head = '<tr>' + '<th>Column</th>'.repeat(3) + '</tr>', row = '<tr>' + '<td><br></td>'.repeat(3) + '</tr>'; document.execCommand('insertHTML', false, `<table><thead>${head}</thead><tbody>${row}${row}</tbody></table><p><br></p>`); }
+      else if (cmd === 'markdown') { formatMarkdown(ed); }
       else if (cmd === 'outline') { if (!sanitize(ed.innerHTML)) ed.innerHTML = OUTLINE[key]; else ed.insertAdjacentHTML('beforeend', OUTLINE[key]); ed.focus(); caretInto(ed.querySelector('p') || ed); }
       else if (cmd) document.execCommand(cmd, false, null);
       else if (b.dataset.t) { const c = cellAtCaret(ed); if (!c) return; const to = TABLE_OPS[b.dataset.t](c); if (to) caretInto(to); }
       save(); sync();
     });
-    ed.addEventListener('input', save);
+    ed.addEventListener('blur', () => { const h = sanitize(ed.innerHTML); if (h !== ed.innerHTML) ed.innerHTML = h; });
+    ed.addEventListener('input', e => { if (e.inputType === 'insertText') autoFormat(ed, e.data); save(); });
     ['keyup', 'mouseup', 'focus'].forEach(ev => ed.addEventListener(ev, sync));
     ed.addEventListener('keydown', e => {
       if (e.key !== 'Tab') return; const c = cellAtCaret(ed); if (!c) return; e.preventDefault();
@@ -483,13 +618,19 @@
     ed.addEventListener('paste', e => {
       const cd = e.clipboardData; if (!cd) return; e.preventDefault();
       const html = cd.getData('text/html'), text = cd.getData('text/plain');
-      document.execCommand('insertHTML', false, html ? sanitize(html) : textToHtml(text)); save();
+      const plainish = html && !/<(table|ul|ol|h[1-6]|strong|b|em|i)\b/i.test(html) && looksMd(text);
+      document.execCommand('insertHTML', false, html && !plainish ? sanitize(mathInHtml(html)) : looksMd(text) ? sanitize(mdToHtml(text)) : textToHtml(text)); save();
     });
     ed.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files.length) e.preventDefault(); });
     ed.addEventListener('click', e => { const a = e.target.closest('a'); if (a && (e.metaKey || e.ctrlKey)) window.open(a.href, '_blank', 'noopener'); });
     sync();
   }
   document.querySelectorAll('.richbox').forEach(setupRich);
+  document.addEventListener('change', e => {
+    const t = e.target; if (!/^(INPUT|TEXTAREA)$/.test(t.tagName) || !/text|search|^$/.test(t.type || '') && t.tagName === 'INPUT') return;
+    const ion = ION.test(t.value); ION.lastIndex = 0; if (!MATH1.test(t.value) && !ion) return;
+    t.value = mathUnicode(t.value); t.dispatchEvent(new Event('input', { bubbles: true }));
+  }, true);
 
   // ---------- files ----------
   function dl(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
