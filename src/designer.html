@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>qPCR Plate Designer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="theme-color" content="#16213e">
+
+<style>
+:root{--bg:#ffffff;--ink:#1d2329;--muted:#5d6670;--line:#dde1e5;--panel:#f4f6f7;--accent:#1F3FD1;--warn:#9a5b00;--warnbg:#fff4e0;--pos:#0A7A44;--bad:#B0171F;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#14181c;--ink:#e6e9ec;--muted:#9aa4ad;--line:#2b3238;--panel:#1b2025;--accent:#7d96ff;--warn:#f0b54d;--warnbg:#2b2213;--pos:#4fd08e;--bad:#ff7b7b;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}
+main{max-width:1240px;margin:0 auto;padding:24px 20px 60px}
+h1{font-size:24px;margin:0;font-weight:650;letter-spacing:-.01em}
+h2{font-size:17px;margin:34px 0 10px;font-weight:600}
+h3{font-size:15px;margin:18px 0 6px;font-weight:600}
+a{color:var(--accent)}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.top p{margin:6px 0 0;color:var(--muted);max-width:70ch}
+.hint{color:var(--muted);font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+button,select{font:inherit;font-size:13px;padding:5px 11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+button.danger{color:var(--bad)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+input,textarea{font:inherit;font-size:14px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
+textarea{resize:vertical;min-height:60px;overflow:hidden}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#tabs{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 0;border-bottom:1px solid var(--line)}
+.tab{display:inline-flex;align-items:center;gap:6px;padding:7px 10px 7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;color:var(--muted);background:var(--panel);font-size:14px}
+.tab.on{color:var(--ink);background:var(--bg);font-weight:600;margin-bottom:-1px;border-bottom:1px solid var(--bg)}
+.tab .x{border:none;background:none;padding:0 2px;font-size:16px;line-height:1;color:var(--muted)}
+.tab.add{color:var(--accent)}
+.platehead{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:14px 0 4px}
+.platehead input.pname{font-size:19px;font-weight:600;border-color:transparent;padding:2px 6px;width:auto;flex:1 1 260px}
+.platehead input.pname:hover{border-color:var(--line)}
+.design{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+#plate{overflow-x:auto;background:var(--panel);border-radius:10px;padding:10px}
+#plate svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+#plate .well{cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted);margin-top:8px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--c);margin-right:5px;vertical-align:-1px}
+.sq{display:inline-block;width:14px;height:4px;background:var(--c);margin-right:5px;vertical-align:2px;border-radius:2px}
+.panel{background:var(--panel);border-radius:10px;padding:12px 14px}
+.panel h3{margin-top:0}
+.fgrid{display:grid;grid-template-columns:96px 1fr;gap:6px 8px;align-items:center;font-size:13px}
+.fgrid label{color:var(--muted)}
+.fgrid input,.fgrid select,.fgrid textarea{font-size:13px}
+.fgrid select{width:100%;padding:4px 6px}
+.mixed::placeholder{font-style:italic}
+details.tool{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}
+details summary{cursor:pointer;color:var(--accent);font-size:13px;margin:4px 0}
+#info{font-size:13px;min-height:44px;margin:8px 0 0;padding:8px 12px;border-left:3px solid var(--line);color:var(--muted)}
+#info b{color:var(--ink)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;font-size:14px;width:100%}
+th,td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);white-space:nowrap;font-size:13px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+table.edit td{padding:3px 4px}
+table.edit input{padding:3px 6px;font-size:13px}
+table.edit td.del{width:30px}
+table.edit .rm{border:none;background:none;color:var(--muted);padding:2px 6px;font-size:16px}
+.meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 18px}
+.meta label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:2px}
+.meta label.wide{grid-column:1/-1}
+.log{list-style:none;margin:0;padding:0;border-left:2px solid var(--line)}
+.log li{position:relative;padding:4px 0 10px 18px;display:grid;grid-template-columns:260px 190px 1fr 30px;gap:6px;align-items:start}
+.log li::before{content:"";position:absolute;left:-6px;top:12px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.log li textarea{min-height:34px}
+.log .when{display:flex;gap:4px}.log .when input[type=date]{flex:1 1 130px}.log .when input[type=time]{flex:0 0 112px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chips button{border-radius:999px;font-size:12px;padding:3px 10px}
+.status{color:var(--muted);font-size:13px;min-height:18px}
+.printonly{display:none}
+footer{margin-top:40px;color:var(--muted);font-size:13px}
+@media (max-width:900px){.design{grid-template-columns:1fr}.log li{grid-template-columns:1fr 30px}.log li>*:nth-child(n+2):not(:last-child){grid-column:1}}
+@media print{
+  :root{--bg:#fff;--ink:#000;--muted:#444;--line:#bbb;--panel:#fff;color-scheme:light}
+  body{font-size:11pt}
+  main{max-width:none;padding:0}
+  .noprint,#tabs,.panel.editor,details.tool,.chips,.rm,.del,#info{display:none!important}
+  .printonly{display:block}
+  .design{display:block}
+  #plate{padding:0;background:none}
+  input,textarea,select{border:none;padding:0;resize:none;background:none}
+  textarea{min-height:0}
+  .log li{grid-template-columns:170px 150px 1fr;break-inside:avoid}
+  .log .when input[type=time]:placeholder-shown{color:transparent}
+  h2{break-after:avoid}
+  table{font-size:10pt}
+  details{display:block}details>summary{display:none}
+  input::-webkit-calendar-picker-indicator{display:none}
+  input[type=checkbox]{accent-color:#000}
+}
+</style>
+</head>
+<body>
+<main>
+<div class="top noprint">
+  <div>
+    <h1>qPCR Plate Designer</h1>
+    <p>Lay out each plate well by well, then keep the run's protocol record with it — reagents, cycling program, and a timestamped log. Everything stays in this browser; save a file to keep or share a copy.</p>
+  </div>
+  <div class="row">
+    <a href="./index.html" class="hint">Open the qPCR Reader →</a>
+  </div>
+</div>
+
+<div class="row noprint" style="margin-top:14px">
+  <button id="save" class="primary">Save project file</button>
+  <label class="hint"><button id="openbtn">Open project file</button><input type="file" id="openf" accept=".json" hidden></label>
+  <button id="importbtn">Import run files</button><input type="file" id="importf" multiple accept=".eds,.xls,.xlsx,.ods,.txt,.csv" hidden>
+  <button id="print">Print / PDF record</button>
+  <button id="undo" title="Ctrl/⌘ Z">Undo</button>
+  <span id="status" class="status" role="status"></span>
+</div>
+
+<div id="tabs" role="tablist"></div>
+
+<section id="sheet">
+  <div class="platehead">
+    <input class="pname" id="pname" aria-label="Plate name">
+    <label class="hint noprint">Format <select id="fmt"><option value="96">96-well</option><option value="384">384-well</option></select></label>
+    <span class="hint noprint">Color by</span>
+    <span class="noprint" id="colorby"><button data-c="sample">Sample</button><button data-c="target">Target</button><button data-c="group">Group</button><button data-c="task">Task</button></span>
+  </div>
+  <p class="printonly hint" id="printsub"></p>
+
+  <div class="design">
+    <div>
+      <div id="plate"></div>
+      <div class="legend" id="legend"></div>
+      <div id="info" aria-live="polite"></div>
+    </div>
+
+    <div class="panel editor">
+      <h3 id="selhead">No wells selected</h3>
+      <p class="hint" id="selhint" style="margin:-4px 0 8px">Click a well, drag across wells, or click a row letter / column number. Shift-click adds to the selection.</p>
+      <div class="fgrid" id="form">
+        <label for="f_sample">Sample</label><input id="f_sample" data-k="sample" list="dl_sample" autocomplete="off">
+        <label for="f_target">Target</label><input id="f_target" data-k="target" list="dl_target" autocomplete="off">
+        <label for="f_task">Task</label><select id="f_task" data-k="task"><option value="">—</option><option>UNKNOWN</option><option>NTC</option><option>STANDARD</option><option>POSITIVE</option><option>NRT</option></select>
+        <label for="f_dye">Reporter</label><input id="f_dye" data-k="dye" list="dl_dye" autocomplete="off">
+        <label for="f_quencher">Quencher</label><input id="f_quencher" data-k="quencher" list="dl_quencher" autocomplete="off">
+        <label for="f_qty">Quantity</label><input id="f_qty" data-k="qty" inputmode="decimal" autocomplete="off">
+        <label for="f_group">Group</label><input id="f_group" data-k="group" list="dl_group" autocomplete="off" placeholder="condition / treatment">
+        <label for="f_input">Template</label><input id="f_input" data-k="input" autocomplete="off" placeholder="e.g. 2 µL cDNA 1:10">
+        <label for="f_note">Note</label><textarea id="f_note" data-k="note" rows="2"></textarea>
+      </div>
+      <div class="row">
+        <button id="apply" class="primary">Apply to selection</button>
+        <button id="clearw" class="danger">Clear wells</button>
+      </div>
+      <p class="hint" style="margin:0">Fields left blank are left unchanged when several wells with different values are selected.</p>
+
+      <details class="tool">
+        <summary>Fill a sample series</summary>
+        <div class="fgrid">
+          <label>Name</label><input id="s_prefix" value="S">
+          <label>Start at</label><input id="s_start" type="number" value="1">
+          <label>Replicates</label><input id="s_reps" type="number" value="3" min="1">
+          <label>Direction</label><select id="s_dir"><option value="row">Across rows (A1, A2…)</option><option value="col">Down columns (A1, B1…)</option></select>
+        </div>
+        <p class="hint">Fills the selected wells in order: replicates side by side, then the next sample. Other fields (target, dye…) are kept.</p>
+        <button id="s_go">Fill selection</button>
+      </details>
+      <details class="tool">
+        <summary>Fill a dilution series (standards)</summary>
+        <div class="fgrid">
+          <label>Sample name</label><input id="d_name" value="Std">
+          <label>Top quantity</label><input id="d_top" value="100000" inputmode="decimal">
+          <label>Dilution</label><input id="d_fold" value="10" inputmode="decimal">
+          <label>Replicates</label><input id="d_reps" type="number" value="3" min="1">
+          <label>Direction</label><select id="d_dir"><option value="row">Across rows</option><option value="col">Down columns</option></select>
+        </div>
+        <p class="hint">Sets task STANDARD and the quantity for each point (top, top/dilution, …).</p>
+        <button id="d_go">Fill selection</button>
+      </details>
+      <details class="tool">
+        <summary>Copy / paste wells</summary>
+        <p class="hint">Copy the selected wells' contents, then select the top-left well of the destination and paste. ⌘/Ctrl C and V also work.</p>
+        <div class="row"><button id="copy">Copy</button><button id="paste">Paste</button></div>
+      </details>
+    </div>
+  </div>
+
+  <datalist id="dl_sample"></datalist><datalist id="dl_target"></datalist><datalist id="dl_group"></datalist>
+  <datalist id="dl_dye"><option>FAM</option><option>VIC</option><option>SYBR</option><option>ABY</option><option>JUN</option><option>Cy5</option><option>NED</option><option>TAMRA</option></datalist>
+  <datalist id="dl_quencher"><option>NFQ-MGB</option><option>QSY</option><option>None</option></datalist>
+
+  <h2>Plate map summary</h2>
+  <p class="hint noprint" style="margin-top:-6px">Each sample × target combination, its wells and replicate count.</p>
+  <div class="tablewrap" id="summary"></div>
+
+  <details id="wellsd"><summary>All wells in detail</summary><h3 class="printonly">All wells</h3><div class="tablewrap" id="wells"></div></details>
+
+  <h2>Protocol record</h2>
+  <h3>Experiment</h3>
+  <div class="meta" id="meta"></div>
+
+  <h3>Reaction setup and master mix</h3>
+  <div class="row">
+    <label class="hint">Reaction volume (µL) <input id="m_vol" style="width:80px" inputmode="decimal"></label>
+    <label class="hint">Reactions <input id="m_n" style="width:70px" inputmode="numeric"></label>
+    <label class="hint">Overage % <input id="m_over" style="width:70px" inputmode="decimal"></label>
+    <span class="hint" id="m_auto"></span>
+  </div>
+  <div class="tablewrap"><table class="edit" id="mix"></table></div>
+  <div class="row noprint"><button id="m_add">Add component</button><button id="m_fill">Fill water to volume</button><span class="hint">Mixes per target: one master mix is usually made per primer/probe set.</span></div>
+  <div class="tablewrap" id="mixper"></div>
+
+  <h3>Thermal cycling</h3>
+  <div class="row noprint">
+    <span class="hint">Preset</span>
+    <button data-preset="std">Standard (TaqMan)</button><button data-preset="fast">Fast</button><button data-preset="sybr">SYBR + melt</button>
+  </div>
+  <div class="tablewrap"><table class="edit" id="cyc"></table></div>
+  <div class="row noprint"><button id="c_add">Add step</button></div>
+
+  <h3>Log</h3>
+  <p class="hint noprint" style="margin-top:-4px">What you did, when, in order. Quick steps stamp the current time; edit anything afterwards.</p>
+  <div class="chips noprint" id="quick"></div>
+  <ul class="log" id="log"></ul>
+  <div class="row noprint"><button id="l_add">Add entry now</button></div>
+
+  <h3>Notes and observations</h3>
+  <textarea id="notes" rows="5" placeholder="Deviations from protocol, issues, results to follow up…"></textarea>
+
+  <h3 class="noprint">Export this plate</h3>
+  <div class="row noprint">
+    <button id="xpng">Plate map (PNG)</button><button id="xcsv">Well list (CSV)</button><button id="xqs">Sample setup for QuantStudio (.txt)</button>
+  </div>
+</section>
+
+<footer class="noprint">qPCR Plate Designer · part of qPCR Reader. Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
+</main>
+<script>/*JSZIP*/</script>
+<script>/*XLSX*/</script>
+<script>/*CORE*/</script>
+<script>/*DESIGNER*/</script>
+<script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-"""Assemble the single-file app (index.html) from src/ and the pinned third-party libraries.
+"""Assemble the single-file apps (index.html, designer.html) from src/ and the pinned third-party libraries.
 Usage (from the repo root):  python3 src/build.py
 Downloads the libraries from npm once into src/vendor/ if they are missing."""
 import os, subprocess, tarfile, io, urllib.request
@@ -14,8 +14,10 @@ for out, (name, ver, inner) in LIBS.items():
         with tarfile.open(fileobj=io.BytesIO(urllib.request.urlopen(url).read())) as t:
             open(p, 'wb').write(t.extractfile(inner).read())
 safe = lambda s: s.replace('</script', '<\\/script')
-t = open(os.path.join(SRC, 'template.html'), encoding='utf-8').read()
-for k, f in {'/*JSZIP*/': 'vendor/jszip.min.js', '/*XLSX*/': 'vendor/xlsx.full.min.js', '/*CHARTJS*/': 'vendor/chart.umd.js', '/*CORE*/': 'core.js', '/*APP2*/': 'app2.js'}.items():
-    t = t.replace(k, safe(open(os.path.join(SRC, f), encoding='utf-8').read()))
-open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8').write(t)
-print('index.html written')
+PARTS = {'/*JSZIP*/': 'vendor/jszip.min.js', '/*XLSX*/': 'vendor/xlsx.full.min.js', '/*CHARTJS*/': 'vendor/chart.umd.js', '/*CORE*/': 'core.js', '/*APP2*/': 'app2.js', '/*DESIGNER*/': 'designer.js'}
+for tpl, out in [('template.html', 'index.html'), ('designer.html', 'designer.html')]:
+    t = open(os.path.join(SRC, tpl), encoding='utf-8').read()
+    for k, f in PARTS.items():
+        if k in t: t = t.replace(k, safe(open(os.path.join(SRC, f), encoding='utf-8').read()))
+    open(os.path.join(ROOT, out), 'w', encoding='utf-8').write(t)
+    print(out + ' written')

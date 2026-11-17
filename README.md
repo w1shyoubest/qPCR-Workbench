@@ -27,6 +27,18 @@ A browser app for reading Applied Biosystems QuantStudio runs (built and tested 
 
 Fold change assumes 100% amplification efficiency (2^ΔΔCt).
 
+## Plate Designer
+
+`designer.html` (linked from the reader) plans a plate before the run and keeps its protocol record:
+
+- 96- or 384-well plate map: click, drag, Shift-click or click a row/column header to select wells, then set sample, target(s), task, reporter, quencher, quantity, group, template and a note. Multiplex wells take several targets separated by commas.
+- Fill helpers for sample series (with replicates) and standard dilution series; copy/paste and undo.
+- Color the map by sample, target, group or task; hover a well to see everything recorded for it.
+- Plate map summary (sample × target, wells, n) and a full well table.
+- Protocol record below the plate: experiment details, master-mix calculator (overage, per-target mixes), thermal cycling program with presets, a timestamped log with quick steps, and free notes.
+- Several plates per project. Work autosaves in the browser; "Save project file" writes a `.qpcrplan.json` to keep or share. Print / PDF gives a clean record.
+- Import a layout from a run file (`.eds`, or an export with a *Sample Setup* sheet); export the plate map (PNG), well list (CSV) and a QuantStudio-style sample setup (.txt).
+
 ## Develop
 
 Sources are in `src/` (`core.js` parsing and analysis, `app2.js` interface, `template.html` page). Rebuild the single-file app after editing:
