@@ -136,7 +136,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   <button id="save" class="primary">Save project file</button>
   <label class="hint"><button id="openbtn">Open project file</button><input type="file" id="openf" accept=".json" hidden></label>
   <button id="importbtn">Import run files</button><input type="file" id="importf" multiple accept=".eds,.xls,.xlsx,.ods,.txt,.csv" hidden>
-  <button id="print">Print / PDF record</button>
+  <span class="hint" style="margin-left:6px">Export</span><select id="xscope" aria-label="What to export"><option value="cur">this plate</option><option value="all">all plates</option></select><button id="xdocx">Word (.docx)</button><button id="xpdf">PDF</button>
   <button id="undo" title="Ctrl/⌘ Z">Undo</button>
   <span id="status" class="status" role="status"></span>
 </div>
@@ -263,7 +263,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   </div>
 </section>
 
-<footer class="noprint">qPCR Workbench v2.2.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
+<footer class="noprint">qPCR Workbench v2.3.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>

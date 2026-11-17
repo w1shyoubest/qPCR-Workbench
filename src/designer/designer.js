@@ -306,13 +306,16 @@
     return out.join(', ');
   }
 
-  function renderTables() {
-    const p = P(), keys = Object.keys(p.wells).sort(posOrder);
-    // summary by sample × target
+  // summary by sample × target
+  function summaryOf(p) {
     const groups = new Map();
-    keys.forEach(k => { const w = p.wells[k]; (targetsOf(w).length ? targetsOf(w) : ['']).forEach(t => {
+    Object.keys(p.wells).sort(posOrder).forEach(k => { const w = p.wells[k]; (targetsOf(w).length ? targetsOf(w) : ['']).forEach(t => {
       const g = (w.sample || '') + '\u0000' + t; if (!groups.has(g)) groups.set(g, { sample: w.sample, target: t, task: new Set(), group: new Set(), qty: new Set(), wells: [] });
       const G = groups.get(g); G.wells.push(k); if (w.task) G.task.add(w.task); if (w.group) G.group.add(w.group); if (w.qty !== '' && w.qty != null) G.qty.add(fmtQty(w.qty)); }); });
+    return groups;
+  }
+  function renderTables() {
+    const p = P(), keys = Object.keys(p.wells).sort(posOrder), groups = summaryOf(p);
     const pal = palettes(p);
     $('#summary').innerHTML = groups.size ? `<table><thead><tr><th>Sample</th><th>Target</th><th>Task</th><th>Group</th><th>Quantity</th><th class="num">n</th><th>Wells</th></tr></thead><tbody>` +
       [...groups.values()].map(G => `<tr><td><i class="dot" style="--c:${colorFor('sample', G.sample, pal) || 'transparent'}"></i>${esc(G.sample || '—')}</td><td>${G.target ? `<i class="sq" style="--c:${colorFor('target', G.target, pal)}"></i>` : ''}${esc(G.target || '—')}</td><td>${esc([...G.task].join(', '))}</td><td>${esc([...G.group].join(', '))}</td><td>${esc([...G.qty].join(', '))}</td><td class="num">${G.wells.length}</td><td>${compress(G.wells)}</td></tr>`).join('') + '</tbody></table>'
@@ -723,9 +726,167 @@
     return p;
   }
 
-  $('#xpng').addEventListener('click', () => {
-    const p = P(), svg = plateSVG(p, true), img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-    img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url); c.toBlob(b => dl(safeName(p.name) + '_platemap.png', b)); }; img.src = url;
+  function platePNG(p) {
+    return new Promise((ok, bad) => {
+      const svg = plateSVG(p, true), img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url); c.toBlob(b => ok({ blob: b, url: c.toDataURL('image/png'), w: img.width / 2, h: img.height / 2 })); };
+      img.onerror = bad; img.src = url;
+    });
+  }
+  $('#xpng').addEventListener('click', async () => { const p = P(), r = await platePNG(p); dl(safeName(p.name) + '_platemap.png', r.blob); });
+
+  // ---------- reports: one HTML record per plate, printed to PDF or converted to Word ----------
+  function legendText(p) {
+    const pal = palettes(p), by = state.colorBy, parts = [];
+    const name = { sample: 'Fill colour = sample', target: 'Fill colour = target', group: 'Fill colour = group', task: 'Fill colour = task' }[by];
+    if (pal.target.length && by !== 'target') parts.push('bars at the bottom of each well = target (' + pal.target.join(', ') + ')');
+    parts.push('dashed outline = NTC');
+    return name + '; ' + parts.join('; ') + '.';
+  }
+  function reportHTML(p, img) {
+    const T = (head, rows) => '<table><thead><tr>' + head.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(c => `<td>${esc(c == null ? '' : c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    const { R, C } = dims(p.fmt), keys = Object.keys(p.wells).sort(posOrder);
+    let h = `<h1>${esc(p.name)}</h1>`;
+    const meta = META.map(([k, lab]) => [lab, p.meta[k]]).filter(([, v]) => v);
+    h += '<h2>Design</h2>' + (meta.length ? T(['Detail', ''], meta).replace('<thead><tr><th>Detail</th><th></th></tr></thead>', '') : '');
+    h += sanitize(p.design) || '<p><em>No design notes.</em></p>';
+    h += `<h2>Plate layout</h2><p>${p.fmt}-well plate · ${keys.length} of ${R * C} wells used. ${esc(legendText(p))}</p>`;
+    h += img ? `<p><img data-plate="1" src="${img.url}" width="${img.w}" height="${img.h}" alt="Plate map"></p>` : '';
+    const groups = [...summaryOf(p).values()];
+    if (groups.length) h += '<h3>Plate map summary</h3>' + T(['Sample', 'Target', 'Task', 'Group', 'Quantity', 'n', 'Wells'], groups.map(G => [G.sample || '—', G.target || '—', [...G.task].join(', '), [...G.group].join(', '), [...G.qty].join(', '), String(G.wells.length), compress(G.wells)]));
+    if (keys.length) h += '<h3>All wells</h3>' + T(['Well', 'Sample', 'Target', 'Task', 'Reporter', 'Quencher', 'Qty', 'Group', 'Template', 'Note'], keys.map(k => [k, ...FIELDS.map(f => p.wells[k][f] || '')]));
+    h += '<h2>Results and conclusions</h2>' + (sanitize(p.results) || '<p><em>No results recorded yet.</em></p>');
+    h += '<h2>Protocol record</h2>';
+    const m = p.mix, comps = m.comps || [];
+    if (comps.length) { const { total } = mixReactions(p); h += `<h3>Reaction setup and master mix</h3><p>Reaction volume ${esc(m.vol || '—')} µL · ${r1(total)} reactions including ${esc(m.over || 0)}% overage.</p>` + T(['Component', 'Stock', 'Final', 'µL / rxn', 'In mix', 'µL total', 'Lot / notes'], comps.map(c => [c.name, c.stock, c.final, String(c.vol), c.inMix ? 'yes' : 'per well', c.inMix ? r1(numv(c.vol) * total) : '', c.lot])); }
+    else h += '<h3>Reaction setup and master mix</h3><p><em>Not recorded.</em></p>';
+    h += '<h3>Thermal cycling</h3>' + (p.cyc.length ? T(['Stage', 'Temp (°C)', 'Time', 'Cycles', 'Data collection', 'Notes'], p.cyc.map(c => [c.stage, String(c.temp), c.time, String(c.cycles), c.collect ? 'yes' : '', c.note || ''])) : '<p><em>Not recorded.</em></p>');
+    const log = [...p.log].sort((a, b) => String(a.t || '').localeCompare(String(b.t || '')));
+    h += '<h3>Log</h3>' + (log.length ? T(['Date', 'Time', 'Step', 'Details'], log.map(e => [String(e.t || '').slice(0, 10), String(e.t || '').slice(11, 16), e.step, e.text])) : '<p><em>No entries.</em></p>');
+    return h;
+  }
+  const scopePlates = () => $('#xscope').value === 'all' ? state.plates : [P()];
+  const reportName = ps => safeName(ps.length > 1 ? (ps[0].meta.project || 'qPCR_plates') + '_all_plates' : ps[0].name);
+
+  // PDF: the report in a hidden frame, printed with the browser's "Save as PDF"
+  $('#xpdf').addEventListener('click', async () => {
+    const ps = scopePlates(); status('Preparing PDF…');
+    const parts = []; for (const p of ps) parts.push(reportHTML(p, await platePNG(p)));
+    const css = `@page{margin:16mm}body{font:10.5pt/1.45 -apple-system,"Segoe UI",Roboto,Arial,"PingFang SC",sans-serif;color:#111}h1{font-size:18pt;margin:0 0 6pt}h2{font-size:13pt;margin:16pt 0 6pt;border-bottom:1px solid #bbb;padding-bottom:2pt;break-after:avoid}h3{font-size:11pt;margin:12pt 0 4pt;break-after:avoid}h4{font-size:10.5pt;margin:10pt 0 4pt}p{margin:4pt 0}ul,ol{margin:4pt 0;padding-left:18pt}table{border-collapse:collapse;margin:6pt 0;font-size:9pt;width:100%}th,td{border:1px solid #bbb;padding:3pt 5pt;text-align:left;vertical-align:top}th{background:#eee}tr{break-inside:avoid}img{max-width:100%;height:auto}sup,sub{font-size:.75em;line-height:0}code{font-family:Menlo,Consolas,monospace;font-size:9pt}blockquote{margin:4pt 0;padding-left:8pt;border-left:2pt solid #bbb;color:#444}.plate+.plate{break-before:page}`;
+    const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f);
+    const d = f.contentDocument; d.open(); d.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(reportName(ps))}</title><style>${css}</style></head><body>${parts.map(x => `<section class="plate">${x}</section>`).join('')}</body></html>`); d.close();
+    await Promise.all([...d.images].map(i => i.decode().catch(() => {})));
+    status('In the print dialog, choose “Save as PDF”.');
+    f.contentWindow.focus(); f.contentWindow.print();
+    setTimeout(() => f.remove(), 60000);
+  });
+
+  // Word: a real .docx (Office Open XML) built from the same report HTML
+  function docxFrom(htmlParts, images) {
+    const X = t => String(t).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const rels = []; let nums = 2; const numDefs = [];
+    const rel = (type, target, ext) => { const id = 'rId' + (rels.length + 10); rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${X(target)}"${ext ? ' TargetMode="External"' : ''}/>`); return id; };
+    const run = (text, f) => {
+      const pr = (f.b ? '<w:b/>' : '') + (f.i ? '<w:i/>' : '') + (f.u ? '<w:u w:val="single"/>' : '') + (f.s ? '<w:strike/>' : '') + (f.code ? '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>' : '') + (f.link ? '<w:rStyle w:val="Hyperlink"/>' : '') + (f.sup ? '<w:vertAlign w:val="superscript"/>' : f.sub ? '<w:vertAlign w:val="subscript"/>' : '') + (f.muted ? '<w:color w:val="555555"/>' : '');
+      return `<w:r>${pr ? `<w:rPr>${pr}</w:rPr>` : ''}<w:t xml:space="preserve">${X(text)}</w:t></w:r>`;
+    };
+    function inline(node, f) {
+      let out = '';
+      for (const n of node.childNodes) {
+        if (n.nodeType === 3) { const t = n.nodeValue.replace(/\s+/g, ' ').replace(/​/g, ''); if (t) out += run(t, f); continue; }
+        if (n.nodeType !== 1) continue;
+        const tg = n.tagName;
+        if (tg === 'BR') out += '<w:r><w:br/></w:r>';
+        else if (tg === 'IMG') out += imageRun(n);
+        else if (tg === 'A' && n.getAttribute('href')) out += `<w:hyperlink r:id="${rel('hyperlink', n.getAttribute('href'), true)}">${inline(n, { ...f, link: 1 })}</w:hyperlink>`;
+        else out += inline(n, { ...f, b: f.b || /^(STRONG|B|TH)$/.test(tg), i: f.i || /^(EM|I)$/.test(tg), u: f.u || tg === 'U', s: f.s || tg === 'S', sup: f.sup || tg === 'SUP', sub: f.sub || tg === 'SUB', code: f.code || tg === 'CODE' });
+      }
+      return out;
+    }
+    let imgN = 0;
+    function imageRun(n) {
+      const im = images[+n.dataset.idx]; if (!im) return '';
+      const maxW = 6.3 * 914400, w = Math.min(maxW, im.w * 9525), hgt = Math.round(w * im.h / im.w), id = rel('image', 'media/' + im.name); imgN++;
+      return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${Math.round(w)}" cy="${hgt}"/><wp:docPr id="${imgN}" name="Plate map ${imgN}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${imgN}" name="${X(im.name)}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(w)}" cy="${hgt}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    }
+    const para = (content, ppr) => `<w:p>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ''}${content}</w:p>`;
+    const BLOCK = /^(P|DIV|H1|H2|H3|H4|UL|OL|TABLE|BLOCKQUOTE|HR|SECTION)$/;
+    function blocks(node, listCtx) {
+      let out = '', buf = document.createElement('span');
+      const flush = () => { if (buf.childNodes.length) { const c = inline(buf, {}); if (c.replace(/<[^>]+>/g, '').trim() || /<w:drawing>/.test(c)) out += para(c, listCtx ? '' : ''); buf = document.createElement('span'); } };
+      for (const n of [...node.childNodes]) {
+        if (n.nodeType === 1 && BLOCK.test(n.tagName)) { flush(); out += block(n, listCtx); } else buf.appendChild(n.cloneNode(true));
+      }
+      flush(); return out;
+    }
+    function block(n, listCtx) {
+      const tg = n.tagName;
+      if (/^H[1-4]$/.test(tg)) return para(inline(n, {}), `<w:pStyle w:val="Heading${tg[1]}"/>`);
+      if (tg === 'P') return para(inline(n, {}) || '');
+      if (tg === 'DIV' || tg === 'SECTION') return [...n.children].some(c => BLOCK.test(c.tagName)) ? blocks(n, listCtx) : para(inline(n, {}));
+      if (tg === 'HR') return para('', '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="AAAAAA"/></w:pBdr>');
+      if (tg === 'BLOCKQUOTE') return para(inline(n, { muted: 1 }), '<w:ind w:left="360"/>');
+      if (tg === 'UL' || tg === 'OL') {
+        const lvl = listCtx ? listCtx.lvl + 1 : 0, numId = tg === 'UL' ? 1 : (listCtx && listCtx.ol ? listCtx.numId : (numDefs.push(nums), nums++));
+        let out = '';
+        for (const li of n.children) {
+          if (li.tagName !== 'LI') continue;
+          const head = document.createElement('span'), rest = [];
+          for (const c of [...li.childNodes]) { if (c.nodeType === 1 && /^(UL|OL|TABLE)$/.test(c.tagName)) rest.push(c); else if (c.nodeType === 1 && /^(P|DIV)$/.test(c.tagName) && !rest.length) [...c.childNodes].forEach(x => head.appendChild(x.cloneNode(true))); else if (!rest.length) head.appendChild(c.cloneNode(true)); else rest.push(c); }
+          out += para(inline(head, {}), `<w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="${Math.min(lvl, 8)}"/><w:numId w:val="${numId}"/></w:numPr>`);
+          rest.forEach(c => { out += c.nodeType === 1 ? block(c, { lvl, ol: tg === 'OL', numId }) : ''; });
+        }
+        return out;
+      }
+      if (tg === 'TABLE') {
+        const rows = [...n.rows]; if (!rows.length) return '';
+        const ncol = Math.max(...rows.map(r => [...r.cells].reduce((a, c) => a + (+c.getAttribute('colspan') || 1), 0)), 1), colW = Math.floor(9360 / ncol);
+        const headless = !n.tHead && rows.every(r => [...r.cells].length === 2) && ncol === 2;
+        let t = `<w:tbl><w:tblPr><w:tblStyle w:val="RecordTable"/><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/><w:left w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/><w:right w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="BBBBBB"/></w:tblBorders><w:tblLayout w:type="autofit"/><w:tblLook w:val="04A0" w:firstRow="1"/></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + colW + '"/>'.repeat(ncol)}</w:tblGrid>`;
+        rows.forEach((r, ri) => {
+          const isHead = r.parentNode.tagName === 'THEAD';
+          t += `<w:tr>${isHead ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}`;
+          [...r.cells].forEach((c, ci) => {
+            const span = +c.getAttribute('colspan') || 1, th = c.tagName === 'TH' || (headless && ci === 0);
+            const inner = [...c.children].some(x => BLOCK.test(x.tagName)) ? blocks(c, null) : para(inline(c, { b: th }));
+            t += `<w:tc><w:tcPr><w:tcW w:w="${colW * span}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${th ? '<w:shd w:val="clear" w:color="auto" w:fill="EDEDED"/>' : ''}</w:tcPr>${inner || para('')}</w:tc>`;
+          });
+          t += '</w:tr>';
+        });
+        return t + '</w:tbl>' + para('', '<w:spacing w:after="0"/>');
+      }
+      return para(inline(n, {}));
+    }
+    const body = htmlParts.map((h, k) => { const d = document.createElement('div'); d.innerHTML = h; return (k ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' : '') + blocks(d, null); }).join('');
+    const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+    const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+    const font = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="PingFang SC" w:cs="Calibri"/>';
+    const hd = (n, sz, extra) => `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="${n < 3 ? 280 : 200}" w:after="80"/>${extra || ''}<w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:sz w:val="${sz}"/></w:rPr></w:style>`;
+    const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr>${font}<w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="en-US"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>${hd(1, 36)}${hd(2, 28, '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="BBBBBB"/></w:pBdr>')}${hd(3, 23)}${hd(4, 21)}
+<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="40"/><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style>
+<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="1F3FD1"/><w:u w:val="single"/></w:rPr></w:style>
+<w:style w:type="table" w:styleId="RecordTable"><w:name w:val="Record Table"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:color="BBBBBB"/><w:left w:val="single" w:sz="4" w:color="BBBBBB"/><w:bottom w:val="single" w:sz="4" w:color="BBBBBB"/><w:right w:val="single" w:sz="4" w:color="BBBBBB"/><w:insideH w:val="single" w:sz="4" w:color="BBBBBB"/><w:insideV w:val="single" w:sz="4" w:color="BBBBBB"/></w:tblBorders><w:tblCellMar><w:top w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`;
+    const lvl = (i, fmt, text) => `<w:lvl w:ilvl="${i}"><w:start w:val="1"/><w:numFmt w:val="${fmt}"/><w:lvlText w:val="${text}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${360 + i * 360}" w:hanging="260"/></w:pPr></w:lvl>`;
+    const bullets = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => lvl(i, 'bullet', ['•', '◦', '▪'][i % 3])).join('');
+    const decimals = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => lvl(i, i % 2 ? 'lowerLetter' : 'decimal', `%${i + 1}.`)).join('');
+    const numbering = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>${bullets}</w:abstractNum><w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>${decimals}</w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>${numDefs.map(id => `<w:num w:numId="${id}"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>`).join('')}</w:numbering>`;
+    const z = new JSZip();
+    z.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>');
+    z.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>');
+    z.file('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>qPCR plate record</dc:title><dc:creator>qPCR Workbench</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0, 19)}Z</dcterms:created></cp:coreProperties>`);
+    z.file('word/document.xml', doc); z.file('word/styles.xml', styles); z.file('word/numbering.xml', numbering);
+    z.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>${rels.join('')}</Relationships>`);
+    images.forEach(im => z.file('word/media/' + im.name, im.blob));
+    return z.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  }
+  $('#xdocx').addEventListener('click', async () => {
+    const ps = scopePlates(); status('Preparing Word document…');
+    try {
+      const images = [], parts = [];
+      for (const p of ps) { const im = await platePNG(p); const idx = images.push({ ...im, name: `plate${images.length + 1}.png` }) - 1; parts.push(reportHTML(p, im).replace('data-plate="1"', `data-idx="${idx}"`)); }
+      const blob = await docxFrom(parts, images); const name = reportName(ps) + '.docx'; dl(name, blob); status('Saved ' + name);
+    } catch (err) { status('Could not make the Word file: ' + (err.message || err)); }
   });
   const csvq = v => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
   $('#xcsv').addEventListener('click', () => {
@@ -744,7 +905,6 @@
   });
 
   // ---------- print ----------
-  $('#print').addEventListener('click', () => window.print());
   let wasOpen = false;
   const pm = window.matchMedia('print'); pm.addEventListener('change', () => { printing = pm.matches; renderPlate(); refreshSel(); });
   window.addEventListener('beforeprint', () => { printing = true; renderPlate(); const d = $('#wellsd'); wasOpen = d.open; d.open = true; sel.clear(); refreshSel(); document.querySelectorAll('#sheet textarea').forEach(t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }); });

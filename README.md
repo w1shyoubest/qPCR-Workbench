@@ -30,7 +30,10 @@ A typical plate, top to bottom:
    - thermal cycling program, with presets
    - dated log with quick steps (time optional)
 
-You can keep several plates in one project. Work autosaves in the browser, and **Save project file** writes a `.qpcrplan.json` to keep or share. **Print / PDF** gives a clean record.
+You can keep several plates in one project. Work autosaves in the browser, and **Save project file** writes a `.qpcrplan.json`; reopen that file to keep editing. To share or archive a record, use **Export** for this plate or all plates:
+
+- **Word (.docx)**: a real Word document with headings, tables, Ca²⁺-style formatting and a plate-map picture. It also opens in Google Docs and Pages.
+- **PDF**: the same record, through the print dialog (choose "Save as PDF").
 
 **Import run files** turns `.eds` files or exports with a *Sample Setup* sheet (`.xls`, `.xlsx`, `.ods`, `.txt`) into plates, one per file. It fills in the run details and the log's run-finished and export times. Wells named "NTC" become NTCs, and wells that have a target but no sample are skipped. Exports: plate map (PNG), well list (CSV), and a QuantStudio-style sample setup (.txt).
 
