@@ -87,7 +87,7 @@
   }
 
   // =================== single plate ===================
-  function renderPlate(P) { renderInfo(P); renderSettings(P); renderLayout(P); renderFilters(P); renderChart(P); renderQC(P); renderDelta(P); renderSummary(P); renderWells(P); }
+  function renderPlate(P) { renderInfo(P); renderDesign(P); renderSettings(P); renderLayout(P); renderFilters(P); renderChart(P); renderQC(P); renderDelta(P); renderSummary(P); renderWells(P); }
 
   function runText(P) {
     const i = P.data.info || {};
@@ -361,5 +361,143 @@
   });
   $('#xcchart').addEventListener('click', () => canvasPNG('cchart', 'plates_comparison_chart.png'));
   $('#xochart').addEventListener('click', () => canvasPNG('ochart', 'plates_overlay_curves.png'));
+
+  // =================== design + results: one report per run ===================
+  // The Plate Designer keeps its plates in this browser's storage; a run is matched to its design by file or plate name,
+  // or by the link chosen here. Results and conclusions are written here and saved into that design.
+  const DSTORE = 'qpcr-designer-v1', LSTORE = 'qpcr-reader-links';
+  const META = [['project', 'Project / experiment'], ['date', 'Date'], ['operator', 'Operator'], ['instrument', 'Instrument'], ['block', 'Block / plate'], ['chemistry', 'Chemistry'], ['runFile', 'Run file name'], ['expType', 'Experiment type'], ['passive', 'Passive reference']];
+  const OUTLINE_DESIGN = '<h3>Purpose</h3><p><br></p><h3>Samples</h3><p><br></p><h3>Experiment</h3><p><br></p><h3>Controls</h3><p><br></p>';
+  const OUTLINE_RESULTS = '<h3>Results</h3><p><br></p><h3>Summary</h3><p><br></p><h3>Conclusion</h3><p><br></p>';
+  const store = (k, fb) => { try { const v = JSON.parse(localStorage.getItem(k)); return v || fb; } catch (e) { return fb; } };
+  const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  const dstate = () => { const s = store(DSTORE, null); return s && Array.isArray(s.plates) ? s : { plates: [], cur: 0, colorBy: 'sample' }; };
+  const norm = s => String(s || '').toLowerCase().replace(/\.(eds|xlsx?|ods|txt|json)$/, '').replace(/[^a-z0-9]/g, '');
+  const safeName = s => (s || 'qPCR').replace(/[^\w.-]+/g, '_');
+  function designFor(P) {
+    const links = store(LSTORE, {}), ps = dstate().plates;
+    if (Object.prototype.hasOwnProperty.call(links, P.file)) return ps.find(p => p.id === links[P.file]) || null;
+    const keys = [norm(P.file), norm(P.data.info && P.data.info.name)].filter(Boolean);
+    return ps.find(p => keys.includes(norm(p.name))) || ps.find(p => keys.includes(norm(p.meta && p.meta.runFile))) || null;
+  }
+  function link(P, id) { const l = store(LSTORE, {}); l[P.file] = id; put(LSTORE, l); }
+  // write one field of a design plate straight into storage, so an open Plate Designer tab picks it up
+  function saveDesignField(id, field, value) {
+    const s = dstate(), p = s.plates.find(q => q.id === id); if (!p) return false;
+    p[field] = value; return put(DSTORE, s);
+  }
+
+  const resBox = RICH.setupRich($('#resbox'), { label: 'Results and conclusions', outline: OUTLINE_RESULTS,
+    set: html => { const P = cur(), d = P && designFor(P); if (d && !saveDesignField(d.id, 'results', html)) $('#rsaved').textContent = 'Could not save: browser storage is full or blocked.'; else if (d) { $('#rsaved').textContent = 'Saved with the design “' + d.name + '”.'; } } });
+
+  function renderDesign(P) {
+    const d = designFor(P), ps = dstate().plates;
+    $('#dlink').innerHTML = `<option value="">— none —</option>` + ps.map(p => `<option value="${esc(p.id)}" ${d && d.id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    $('#dnew').hidden = !!d; $('#dedit').hidden = !d;
+    if (d) $('#dedit').href = './designer.html#plate=' + encodeURIComponent(d.id);
+    const meta = d ? META.map(([k, lab]) => [lab, d.meta && d.meta[k]]).filter(([, v]) => v) : [];
+    $('#dmeta').innerHTML = meta.length ? '<table class="kv"><tbody>' + meta.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('') + '</tbody></table>' : '';
+    const html = d ? RICH.sanitize(d.design || '') : '';
+    $('#ddesign').innerHTML = html || `<p class="hint">${d ? 'This design has no notes yet. Add the purpose, samples and experiment in the Plate Designer.' : ps.length
+      ? 'No design is linked to this run. Pick one above, or create one from this run.' : 'No plate designs in this browser yet. Open a project file (.qpcrplan.json), or create a design from this run.'}</p>`;
+    // results box: only editable when there is a design to keep them in
+    resBox.ed.contentEditable = d ? 'true' : 'false';
+    $('#resbox').classList.toggle('off', !d);
+    if (document.activeElement !== resBox.ed) resBox.load(d ? d.results || '' : '');
+    $('#rsaved').textContent = d ? 'Saved automatically with the design “' + d.name + '”.' : 'Link or create a design above to write results here.';
+  }
+  $('#dlink').addEventListener('change', e => { const P = cur(); link(P, e.target.value); renderDesign(P); });
+  $('#dnew').addEventListener('click', () => {
+    const P = cur(), s = dstate(), wells = {};
+    P.data.wells.forEach(w => { const o = wells[w.pos] = wells[w.pos] || { sample: w.sample || '' };
+      if (w.target) o.target = o.target && o.target !== w.target ? o.target + ', ' + w.target : w.target;
+      if (QPCR.isNTC(w)) o.task = 'NTC'; else if (w.task) o.task = String(w.task).toUpperCase(); });
+    const i = P.data.info || {}, end = i.end ? i.end : null, date = end ? `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}` : '';
+    const p = { id: Math.random().toString(36).slice(2, 9), name: P.name, fmt: P.data.ncol > 12 ? 384 : 96, wells,
+      meta: { project: '', date, operator: '', instrument: 'QuantStudio 5', block: P.data.ncol > 12 ? '384-well' : '96-well', chemistry: '', runFile: P.file, expType: i.type || '', passive: P.data.passive || '' },
+      mix: { vol: '', n: '', over: 10, comps: [] }, cyc: [], log: [], design: OUTLINE_DESIGN, results: '' };
+    s.plates.push(p); if (!put(DSTORE, s)) return alertStatus('Could not save: browser storage is full or blocked.');
+    link(P, p.id); renderDesign(P); alertStatus('Created the design “' + p.name + '”. Fill in the purpose and samples in the Plate Designer.');
+  });
+  function alertStatus(t) { const el = $('#dstatus'); el.textContent = t; clearTimeout(alertStatus.t); alertStatus.t = setTimeout(() => el.textContent = '', 6000); }
+  $('#dopen').addEventListener('click', () => $('#dprojf').click());
+  $('#dprojf').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text()); if (!d.plates || !Array.isArray(d.plates)) throw new Error('not a Plate Designer project');
+      const s = dstate(), have = new Map(s.plates.map((p, k) => [p.id, k]));
+      const clash = d.plates.filter(p => have.has(p.id));
+      const replace = clash.length ? confirm(`${clash.length} of these plates are already in this browser.\n\nOK = use the versions in “${f.name}”\nCancel = keep the versions in this browser`) : false;
+      let added = 0; d.plates.forEach(p => { if (!have.has(p.id)) { s.plates.push(p); added++; } else if (replace) s.plates[have.get(p.id)] = p; });
+      if (!put(DSTORE, s)) throw new Error('browser storage is full or blocked');
+      render(); alertStatus(`Opened ${f.name}: ${added} plate design${added === 1 ? '' : 's'} added${clash.length ? `, ${clash.length} ${replace ? 'replaced' : 'kept as they were'}` : ''}.`);
+    } catch (err) { alertStatus('Could not open ' + f.name + ': ' + (err.message || err)); }
+  });
+  $('#xproj').addEventListener('click', () => { const s = dstate(); if (!s.plates.length) return alertStatus('No plate designs to save yet.');
+    const name = safeName((s.plates[0].meta && s.plates[0].meta.project) || 'qPCR_plates') + '_' + new Date().toISOString().slice(0, 10) + '.qpcrplan.json';
+    dl(name, new Blob([JSON.stringify({ app: 'qpcr-plate-designer', version: 1, saved: new Date().toISOString(), ...s }, null, 1)], { type: 'application/json' })); });
+  // another tab (the Plate Designer) changed the designs: show the new version unless the user is typing results here
+  window.addEventListener('storage', e => { if ((e.key === DSTORE || e.key === LSTORE) && plates.length && active !== 'compare' && document.activeElement !== resBox.ed) renderDesign(cur()); });
+
+  // ---------- report: design, data and conclusions for one run, as Word or PDF ----------
+  const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  function canvasImage(id) {
+    const src = $('#' + id), c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0);
+    const r = window.devicePixelRatio || 1;
+    return new Promise(ok => c.toBlob(b => ok({ blob: b, url: c.toDataURL('image/png'), w: Math.round(src.width / r), h: Math.round(src.height / r) })));
+  }
+  function svgImage(svg) {
+    return new Promise((ok, bad) => { const img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url); c.toBlob(b => ok({ blob: b, url: c.toDataURL('image/png'), w: img.width / 2, h: img.height / 2 })); };
+      img.onerror = bad; img.src = url; });
+  }
+  const T = (head, rows) => '<table><thead><tr>' + head.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(c => `<td>${esc(c == null ? '' : c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+  // charts are drawn in the light theme while they are captured, so the report prints on white
+  async function reportFor(P, images) {
+    const img = im => { const k = images.push({ ...im, name: `figure${images.length + 1}.png` }) - 1; return `<p><img data-idx="${k}" src="${im.url}" width="${im.w}" height="${im.h}" alt=""></p>`; };
+    const d = designFor(P), i = P.data.info || {};
+    let h = `<h1>${esc(d ? d.name : P.name)}</h1>`;
+    h += `<p>Run file ${esc(P.file)}${runText(P) ? ' · run ended ' + esc(runText(P)) : ''} · ${new Set(P.data.wells.map(w => w.pos)).size} wells · targets ${esc(P.an.targets.join(', '))}</p>`;
+    h += '<h2>Design</h2>';
+    if (d) { const meta = META.map(([k, lab]) => [lab, d.meta && d.meta[k]]).filter(([, v]) => v); if (meta.length) h += T(['Detail', ''], meta).replace(/<thead>.*?<\/thead>/, ''); h += RICH.sanitize(d.design || '') || '<p><em>No design notes.</em></p>'; }
+    else h += '<p><em>No plate design linked to this run.</em></p>';
+    h += '<h2>Data</h2>';
+    h += `<p>Threshold ${esc(thDesc(P))} · baseline ${P.opt.baseline === 'fixed' ? `cycles ${P.opt.bStart}–${P.opt.bEnd}` : 'from the instrument'}${Object.keys(P.opt.excluded).length ? ` · ${Object.keys(P.opt.excluded).length} well(s) excluded` : ''}.${i.protocol ? ' Run method: ' + esc(QPCR.protocolText(i.protocol)) + '.' : ''}</p>`;
+    h += '<h3>Plate layout and Ct</h3>' + img(await svgImage(layoutSVG(P, true)));
+    h += `<h3>${P.view.plot === 'mc' ? 'Multicomponent plot' : P.view.plot === 'rn' ? 'Rn curves' : 'Amplification curves (ΔRn)'}</h3>` + img(await canvasImage('chart'));
+    h += '<h3>Replicate summary</h3>' + T(['Sample', 'Target', 'Wells used', 'Amplified', 'Mean Ct', 'SD'], P.an.summary.map(r => [r.sample, r.target, r.n + (r.excluded ? ` (${r.excluded} excl.)` : ''), `${r.nAmp}/${r.n}`, f2(r.mean), f2(r.sd)]));
+    const rows = deltaRows(P);
+    if (rows.length) {
+      h += `<h3>ΔCt: ${esc(P.delta.target)} vs ${esc(P.delta.ref)}</h3><p>ΔCt = Ct(${esc(P.delta.ref)}) − Ct(${esc(P.delta.target)}); ΔΔCt = ΔCt(sample) − ΔCt(control); fold = 2^ΔΔCt.</p>`;
+      h += T(['Sample', 'Ct ' + P.delta.target, 'Ct ' + P.delta.ref, 'ΔCt', 'SD', 'Control', 'ΔΔCt', 'Fold'], rows.map(r => [r.sample, f2(r.ctT), f2(r.ctR), sgn(r.d), r.dsd == null ? '' : r.dsd.toFixed(2), r.control || '', sgn(r.ddct), r.fold == null ? '' : r.fold.toFixed(2) + '×']));
+      h += img(await canvasImage('dchart'));
+    }
+    const flagged = P.an.wells.filter(w => w.flags.length);
+    h += '<h3>QC flags</h3>' + (flagged.length ? T(['Well', 'Sample', 'Target', 'Ct', 'Flags', 'Excluded'], flagged.map(w => [w.pos, w.sample, w.target, w.ct == null ? 'Undet.' : w.ct.toFixed(2), w.flags.join('; '), w.excluded ? 'yes' : ''])) : '<p>No wells flagged.</p>');
+    h += '<h2>Results and conclusions</h2>' + ((d && RICH.sanitize(d.results || '')) || '<p><em>Not written yet.</em></p>');
+    const log = d && d.log ? [...d.log].sort((a, b) => String(a.t || '').localeCompare(String(b.t || ''))) : [];
+    if (log.length) h += '<h2>Log</h2>' + T(['Date', 'Time', 'Step', 'Details'], log.map(e => [String(e.t || '').slice(0, 10), String(e.t || '').slice(11, 16), e.step, e.text]));
+    return h;
+  }
+  async function buildReport() {
+    const list = $('#rscope').value === 'all' ? plates.slice() : [cur()], back = active, images = [], parts = [];
+    document.documentElement.dataset.theme = 'light';
+    try {
+      for (const P of list) { active = P.id; render(); await nextFrame(); parts.push(await reportFor(P, images)); }
+    } finally { delete document.documentElement.dataset.theme; active = back; render(); }
+    const first = designFor(list[0]);
+    return { parts, images, name: safeName(list.length > 1 ? 'qPCR_report_' + list.length + '_runs' : (first ? first.name : list[0].name) + '_report') };
+  }
+  $('#rdocx').addEventListener('click', async () => {
+    alertStatus('Preparing Word report…');
+    try { const r = await buildReport(); dl(r.name + '.docx', await RICH.docxFrom(r.parts, r.images, r.name)); alertStatus('Saved ' + r.name + '.docx'); }
+    catch (err) { alertStatus('Could not make the report: ' + (err.message || err)); }
+  });
+  $('#rpdf').addEventListener('click', async () => {
+    alertStatus('Preparing PDF…');
+    try { const r = await buildReport(); alertStatus('In the print dialog, choose “Save as PDF”.'); await RICH.printHTML(r.name, r.parts); }
+    catch (err) { alertStatus('Could not make the report: ' + (err.message || err)); }
+  });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (plates.length) render(); });
 })();

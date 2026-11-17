@@ -39,6 +39,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .platehead{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:14px 0 4px}
 .platehead input.pname{font-size:19px;font-weight:600;border-color:transparent;padding:2px 6px;width:auto;flex:1 1 260px}
 .platehead input.pname:hover{border-color:var(--line)}
+.platebar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:var(--panel);border-radius:8px;padding:8px 12px;margin:0 0 12px}
+.resultsnote{margin:24px 0 0;padding:10px 14px;border:1px dashed var(--line);border-radius:8px}.resultsnote a{color:var(--accent)}
 .design{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
 #plate{overflow-x:auto;background:var(--panel);border-radius:10px;padding:10px}
 #plate svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -128,7 +130,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
 <div class="top noprint">
   <div>
     <h1>qPCR Plate Designer</h1>
-    <p>Plan each plate and keep its record in one place: the design, the plate map well by well, the results and conclusions, and the protocol (reagents, cycling, log). Everything stays in this browser. Save a project file to keep or share a copy.</p>
+    <p>Plan each plate and keep its record in one place: the design, the plate map well by well, and the protocol (reagents, cycling, log). After the run, open its file in the <a href="./index.html">Reader</a> to see the design next to the data and write your results. Everything stays in this browser; save a project file to keep or share a copy.</p>
   </div>
 </div>
 
@@ -146,9 +148,6 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
 <section id="sheet">
   <div class="platehead">
     <input class="pname" id="pname" aria-label="Plate name">
-    <label class="hint noprint">Format <select id="fmt"><option value="96">96-well</option><option value="384">384-well</option></select></label>
-    <span class="hint noprint">Color by</span>
-    <span class="noprint" id="colorby"><button data-c="sample">Sample</button><button data-c="target">Target</button><button data-c="group">Group</button><button data-c="task">Task</button></span>
   </div>
   <p class="printonly hint" id="printsub"></p>
 
@@ -158,6 +157,11 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   <div class="richbox" data-rich="design" data-ph="Purpose of this plate, samples used, experiment performed… Markdown and $\text{Ca}^{2+}$-style symbols work."></div>
 
   <h2>Plate layout</h2>
+  <div class="platebar noprint">
+    <label class="hint">Format <select id="fmt"><option value="96">96-well</option><option value="384">384-well</option></select></label>
+    <span class="hint">Color by</span>
+    <span id="colorby"><button data-c="sample">Sample</button><button data-c="target">Target</button><button data-c="group">Group</button><button data-c="task">Task</button></span>
+  </div>
   <div class="design">
     <div>
       <div id="plate"></div>
@@ -226,9 +230,7 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
 
   <details id="wellsd"><summary>All wells in detail</summary><h3 class="printonly">All wells</h3><div class="tablewrap" id="wells"></div></details>
 
-  <h2>Results and conclusions</h2>
-  <p class="hint noprint" style="margin-top:-6px">What came out, a summary, and what you conclude from it.</p>
-  <div class="richbox" data-rich="results" data-ph="Results, summary, conclusion…"></div>
+  <p class="hint noprint resultsnote">Results and conclusions are written in the <a href="./index.html">Reader</a>: open this plate's run file there and the design, the data and your conclusions appear together as one report.</p>
 
   <h2>Protocol record</h2>
 
@@ -263,11 +265,12 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
   </div>
 </section>
 
-<footer class="noprint">qPCR Workbench v2.3.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
+<footer class="noprint">qPCR Workbench v2.4.0 · Plate Designer · Work is saved automatically in this browser; use “Save project file” to keep a permanent copy or move it to another computer.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>
 <script>/*CORE*/</script>
+<script>/*RICH*/</script>
 <script>/*DESIGNER*/</script>
 <script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>

@@ -4,7 +4,7 @@ Usage (from the repo root):  python3 src/build.py
 
   src/reader/    reader.html + reader.js     -> docs/index.html     (qPCR Reader)
   src/designer/  designer.html + designer.js -> docs/designer.html  (Plate Designer)
-  src/shared/    core.js (QuantStudio parsing and analysis, used by both pages)
+  src/shared/    core.js (QuantStudio parsing and analysis) and rich.js (text boxes, Word/PDF reports), used by both pages
   src/static/    service worker, manifest and icons, copied to docs/ as they are
   src/vendor/    pinned third-party libraries, downloaded from npm once if missing
 
@@ -19,7 +19,7 @@ LIBS = {'jszip.min.js': ('jszip', '3.10.1', 'package/dist/jszip.min.js'),
         'xlsx.full.min.js': ('xlsx', '0.18.5', 'package/dist/xlsx.full.min.js'),
         'chart.umd.js': ('chart.js', '4.4.1', 'package/dist/chart.umd.js')}
 PARTS = {'/*JSZIP*/': 'vendor/jszip.min.js', '/*XLSX*/': 'vendor/xlsx.full.min.js', '/*CHARTJS*/': 'vendor/chart.umd.js',
-         '/*CORE*/': 'shared/core.js', '/*READER*/': 'reader/reader.js', '/*DESIGNER*/': 'designer/designer.js'}
+         '/*CORE*/': 'shared/core.js', '/*RICH*/': 'shared/rich.js', '/*READER*/': 'reader/reader.js', '/*DESIGNER*/': 'designer/designer.js'}
 PAGES = [('reader/reader.html', 'index.html'), ('designer/designer.html', 'designer.html')]
 
 os.makedirs(VENDOR, exist_ok=True)

@@ -68,6 +68,32 @@ td.small{font-size:13px;color:var(--muted)}
 #olist{display:flex;flex-wrap:wrap;gap:10px 24px;font-size:13px;color:var(--muted);margin:8px 0}
 .ogroup{display:flex;flex-direction:column;gap:2px}.ogroup b{color:var(--ink);margin-bottom:2px}.ogroup label{display:flex;gap:4px;align-items:center;cursor:pointer}
 .ls{display:inline-block;width:20px;height:0;border-top:2px solid var(--ink);margin-right:4px}.ls1{border-top-style:dashed}.ls2{border-top-style:dotted}
+:root[data-theme="light"]{--bg:#ffffff;--ink:#1d2329;--muted:#5d6670;--line:#dde1e5;--panel:#f4f6f7;--accent:#1F3FD1;--warn:#9a5b00;--warnbg:#fff4e0;--pos:#0A7A44;--bad:#B0171F;color-scheme:light}
+.dhead{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:34px 0 10px}.dhead h2{margin:0 8px 0 0}
+.dhead a{color:var(--accent);font-size:13px}
+#dstatus{color:var(--muted);font-size:13px}
+table.kv{width:auto;margin:0 0 10px}table.kv th{padding-right:18px}
+.design-view{border-left:3px solid var(--accent);padding:2px 0 2px 16px}
+.richbox{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.richbox.off{opacity:.55}
+.richbox .tb{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--panel);border-radius:10px 10px 0 0;position:sticky;top:0;z-index:1}
+.richbox .tb button{padding:3px 8px;font-size:12px;min-width:28px}
+.richbox .tb button:disabled{opacity:.4;cursor:default}
+.richbox .tb .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
+.rich{min-height:120px;padding:10px 14px;outline:none;overflow-x:auto}
+.design-view.rich{min-height:0;padding:2px 0 2px 16px}
+.rich:empty::before{content:attr(data-ph);color:var(--muted)}
+.rich h3{font-size:16px;margin:14px 0 4px}.rich h4{font-size:14px;margin:12px 0 4px}
+.rich h3:first-child,.rich h4:first-child,.rich p:first-child{margin-top:0}
+.rich p{margin:6px 0}.rich ul,.rich ol{margin:6px 0;padding-left:24px}
+.rich table{border-collapse:collapse;width:auto;min-width:50%;margin:8px 0;font-size:14px}
+.rich td,.rich th{border:1px solid var(--line);padding:4px 8px;min-width:60px;vertical-align:top;text-align:left;white-space:normal}
+.rich th{background:var(--panel);color:var(--ink)}
+.rich a{color:var(--accent)}
+.rich code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel);padding:1px 4px;border-radius:4px}
+.rich blockquote{margin:6px 0;padding:2px 12px;border-left:3px solid var(--line);color:var(--muted)}
+.rich hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+.rich sup,.rich sub{font-size:.75em;line-height:0}
 @media (max-width:720px){#intro,#intro.compact{grid-template-columns:1fr}.plot{height:360px}}
 .wbnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:13px;padding:0 0 12px;margin-bottom:16px;border-bottom:1px solid var(--line)}.wbnav b{font-weight:650;margin-right:4px}.wbnav a{color:var(--muted);text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}.wbnav a:hover{color:var(--ink)}.wbnav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent)}@media print{.wbnav{display:none}}
 </style>
@@ -78,7 +104,7 @@ td.small{font-size:13px;color:var(--muted)}
 <section id="intro">
   <div>
     <h1>qPCR Reader for QuantStudio</h1>
-    <p>Open one or more QuantStudio runs to see plate layouts, amplification and multicomponent plots, Cts, QC flags and ΔCt, and to compare plates side by side. Files are read on this computer; nothing is uploaded.</p>
+    <p>Open one or more QuantStudio runs to see each plate's design next to its data — plate layouts, amplification and multicomponent plots, Cts, QC flags and ΔCt, your results and conclusions, and a side-by-side comparison of plates. Save it all as one Word or PDF report. Files are read on this computer; nothing is uploaded.</p>
   </div>
   <div id="drop">
     <div>Drop run files here, or <label for="file">choose files</label></div>
@@ -95,6 +121,19 @@ td.small{font-size:13px;color:var(--muted)}
   <div id="runinfo"></div>
   <div id="method"></div>
   <div id="warn" hidden></div>
+
+  <div class="dhead">
+    <h2>Design</h2>
+    <label class="hint">Plate design <select id="dlink" aria-label="Plate design linked to this run"></select></label>
+    <button id="dnew" hidden>Create a design from this run</button>
+    <button id="dopen">Open project file…</button><input type="file" id="dprojf" accept=".json,application/json" hidden>
+    <a id="dedit" href="./designer.html" hidden>Edit in Plate Designer →</a>
+    <span id="dstatus" role="status"></span>
+  </div>
+  <div id="dmeta"></div>
+  <div id="ddesign" class="rich design-view"></div>
+
+  <h2>Data</h2>
 
   <div class="bar">
     <span class="lab">Threshold</span>
@@ -149,7 +188,19 @@ td.small{font-size:13px;color:var(--muted)}
 
   <details><summary>All wells</summary><div class="tablewrap" id="wells"></div></details>
 
-  <h2>Export</h2>
+  <h2>Results and conclusions</h2>
+  <p class="hint" id="rsaved" style="margin-top:-6px"></p>
+  <div class="richbox" id="resbox" data-rich="results" data-ph="What the data show, a summary, and your conclusion. Markdown and $\text{Ca}^{2+}$-style symbols work."></div>
+
+  <h2>Report</h2>
+  <p class="hint" style="margin-top:-6px">Design, plate layout, curves, Ct summary, ΔCt, QC flags, your results and the log, in one document. Uses the current threshold, baseline, exclusions and plot.</p>
+  <div class="row">
+    <select id="rscope" aria-label="Report scope"><option value="this">This run</option><option value="all">All open runs</option></select>
+    <button id="rdocx">Word (.docx)</button><button id="rpdf">PDF</button>
+    <button id="xproj" title="All plate designs with their results, to reopen in the Plate Designer or another browser">Save project file</button>
+  </div>
+
+  <h2>Export data</h2>
   <div class="row">
     <button id="xdelta">ΔCt table (CSV)</button><button id="xsum">Replicate summary (CSV)</button><button id="xwells">All wells (CSV)</button>
     <button id="xplot">Current curve plot (PNG)</button><button id="xbar">ΔCt chart (PNG)</button><button id="xlayout">Plate layout (PNG)</button>
@@ -180,12 +231,13 @@ td.small{font-size:13px;color:var(--muted)}
   </section>
 </div>
 
-<footer>qPCR Workbench v2.3.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
+<footer>qPCR Workbench v2.4.0 · Reader · Cts are recalculated from the instrument's ΔRn. With a shared threshold they can differ slightly from QuantStudio's per-target values; choose "Per target" to match the instrument's approach.</footer>
 </main>
 <script>/*JSZIP*/</script>
 <script>/*XLSX*/</script>
 <script>/*CHARTJS*/</script>
 <script>/*CORE*/</script>
+<script>/*RICH*/</script>
 <script>/*READER*/</script>
 <script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>
