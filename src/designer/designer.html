@@ -49,7 +49,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @media print{.secbody.collapsed{display:block!important}.ctitle .tri,.ctitle .hidnote,.secctl{display:none!important}}
 .tab.add.delall{color:var(--bad)}
 .platebar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:var(--panel);border-radius:8px;padding:8px 12px;margin:0 0 12px}
-.resultsnote{margin:24px 0 0;padding:10px 14px;border:1px dashed var(--line);border-radius:8px}.resultsnote a{color:var(--accent)}
+.resultsnote{margin:0;padding:10px 14px;border:1px dashed var(--line);border-radius:8px}.resultsnote a{color:var(--accent)}.resultsgo{display:inline-block;margin-top:8px;font-weight:600}
 .design{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
 #plate{overflow-x:auto;background:var(--panel);border-radius:10px;padding:10px}
 #plate svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -240,7 +240,8 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
 
   <details id="wellsd"><summary>All wells in detail</summary><h3 class="printonly">All wells</h3><div class="tablewrap" id="wells"></div></details>
 
-  <p class="hint noprint resultsnote">Results and conclusions are written in the <a href="./index.html">Reader</a>: open this plate's run file there and the design, the data and your conclusions appear together as one report.</p>
+  <h2 class="noprint">Results and conclusions</h2>
+  <p class="hint noprint resultsnote">Results and conclusions are written in the <a href="./index.html">Reader</a>: open this plate's run file there and the design, the data and your conclusions appear together as one report.<br><a class="resultsgo" href="./index.html">Write results and conclusions in the Reader →</a></p>
 
   <h2>Protocol record</h2>
 
