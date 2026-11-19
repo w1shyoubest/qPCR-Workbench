@@ -253,13 +253,13 @@ footer{margin-top:40px;color:var(--muted);font-size:13px}
     <span class="hint" id="m_auto"></span>
   </div>
   <div class="tablewrap"><table class="edit" id="mix"></table></div>
-  <div class="row noprint"><button id="m_add">Add component</button><button id="m_fill">Fill water to volume</button><span class="hint">Mixes per target: one master mix is usually made per primer/probe set.</span></div>
+  <div class="row noprint"><button id="m_tpl" title="10 µL: 5 µL 2× TaqMan Fast Advanced, 0.5 µL 20× primers, 0.5 µL 20× probe, 4 µL template; 25% overage">SNAP-ChIP recipe (10 µL)</button><button id="m_add">Add component</button><button id="m_fill">Fill water to volume</button><span class="hint">One premix (master mix + primers + probe) per mark; the table below splits it by target.</span></div>
   <div class="tablewrap" id="mixper"></div>
 
   <h3>Thermal cycling</h3>
   <div class="row noprint">
     <span class="hint">Preset</span>
-    <button data-preset="std">Standard (TaqMan)</button><button data-preset="fast">Fast</button><button data-preset="sybr">SYBR + melt</button>
+    <button data-preset="std">Standard (TaqMan)</button><button data-preset="fast">Fast (TaqMan Fast Advanced)</button><button data-preset="sybr">SYBR + melt</button>
   </div>
   <div class="tablewrap"><table class="edit" id="cyc"></table></div>
   <div class="row noprint"><button id="c_add">Add step</button></div>

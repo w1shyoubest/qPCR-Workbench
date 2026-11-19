@@ -19,30 +19,33 @@
   const PRESETS = {
     std: [{ stage: 'Hold (UNG)', temp: 50, time: '2:00', cycles: 1, collect: false }, { stage: 'Hold (activation)', temp: 95, time: '10:00', cycles: 1, collect: false },
       { stage: 'PCR', temp: 95, time: '0:15', cycles: 40, collect: false }, { stage: 'PCR', temp: 60, time: '1:00', cycles: 40, collect: true }],
-    fast: [{ stage: 'Hold (UNG)', temp: 50, time: '2:00', cycles: 1, collect: false }, { stage: 'Hold (activation)', temp: 95, time: '0:20', cycles: 1, collect: false },
-      { stage: 'PCR', temp: 95, time: '0:01', cycles: 40, collect: false }, { stage: 'PCR', temp: 60, time: '0:20', cycles: 40, collect: true }],
+    fast: [{ stage: 'Hold (UNG)', temp: 50, time: '2:00', cycles: 1, collect: false }, { stage: 'Hold (activation)', temp: 95, time: '0:20', cycles: 1, collect: false, note: 'up to 2 min' },
+      { stage: 'PCR (denature)', temp: 95, time: '0:01', cycles: 40, collect: false }, { stage: 'PCR (anneal/extend)', temp: 60, time: '0:20', cycles: 40, collect: true, note: 'TaqMan Fast Advanced, fast mode' }],
     sybr: [{ stage: 'Hold (UNG)', temp: 50, time: '2:00', cycles: 1, collect: false }, { stage: 'Hold (activation)', temp: 95, time: '2:00', cycles: 1, collect: false },
       { stage: 'PCR', temp: 95, time: '0:15', cycles: 40, collect: false }, { stage: 'PCR', temp: 60, time: '1:00', cycles: 40, collect: true },
       { stage: 'Melt curve', temp: 95, time: '0:15', cycles: 1, collect: false }, { stage: 'Melt curve', temp: 60, time: '1:00', cycles: 1, collect: false },
       { stage: 'Melt curve', temp: 95, time: '0:15', cycles: 1, collect: true, note: '0.15 °C/s, continuous' }]
   };
+  // SNAP-ChIP spike-in qPCR on CUT&RUN DNA (EpiCypher manual, scaled to TaqMan Fast Advanced): 10 µL, premix 6 µL per well
   const DEFAULT_MIX = [
-    { name: '2× master mix', stock: '2×', final: '1×', vol: 10, inMix: true, lot: '' },
-    { name: 'Primer/probe assay', stock: '20×', final: '1×', vol: 1, inMix: true, lot: '' },
-    { name: 'Nuclease-free water', stock: '', final: '', vol: 7, inMix: true, lot: '' },
-    { name: 'Template (cDNA)', stock: '', final: '', vol: 2, inMix: false, lot: '' }];
+    { name: '2× TaqMan Fast Advanced Master Mix', stock: '2×', final: '1×', vol: 5, inMix: true, lot: '' },
+    { name: 'Primer mix (one mark)', stock: '20×', final: '250 nM each', vol: 0.5, inMix: true, lot: '' },
+    { name: 'Probe', stock: '20×', final: '250 nM', vol: 0.5, inMix: true, lot: '' },
+    { name: 'Nuclease-free water', stock: '', final: '', vol: 0, inMix: true, lot: '' },
+    { name: 'Template (CUT&RUN DNA, 1:10)', stock: '', final: '', vol: 4, inMix: false, lot: 'note µL of eluate used' }];
+  const DEFAULT_MIXSET = { vol: 10, over: 25 }; // ~25% extra for OT-2 dead volume
   const META = [['project', 'Project / experiment'], ['date', 'Date', 'date'], ['operator', 'Operator'], ['instrument', 'Instrument'],
     ['block', 'Block / plate'], ['chemistry', 'Chemistry'], ['runFile', 'Run file name'], ['expType', 'Experiment type'], ['passive', 'Passive reference']];
   const OUTLINE = {
     design: '<h3>Purpose</h3><p><br></p><h3>Samples</h3><table><thead><tr><th>Sample</th><th>Description</th><th>Source / date</th><th>Notes</th></tr></thead><tbody><tr><td><br></td><td><br></td><td><br></td><td><br></td></tr><tr><td><br></td><td><br></td><td><br></td><td><br></td></tr></tbody></table><h3>Experiment</h3><p><br></p><h3>Controls</h3><p><br></p>',
     results: '<h3>Results</h3><p><br></p><h3>Summary</h3><p><br></p><h3>Conclusion</h3><p><br></p>' };
-  const QUICK = ['RNA extracted', 'DNase treatment', 'RNA quantified', 'cDNA synthesis (RT)', 'Master mix prepared', 'Plate loaded', 'Plate sealed & spun', 'Run started', 'Run finished', 'Data exported'];
+  const QUICK = ['QS5 booked with lab manager', 'CUT&RUN DNA thawed on ice', 'Samples diluted 1:10', 'Premix prepared (per mark)', 'Source labware loaded', 'Labware Position Check', 'OT-2: premix dispensed (6 µL)', 'OT-2: template dispensed (4 µL)', 'Plate sealed & spun', 'Run started', 'Run finished', 'Data exported'];
 
   function newPlate(name, fmt) {
     return { id: Math.random().toString(36).slice(2, 9), name: name || 'Plate ' + (state.plates.length + 1), fmt: fmt || 96, wells: {},
-      meta: { project: '', date: today(), operator: '', instrument: 'QuantStudio 5', block: fmt == 384 ? '384-well' : '96-well 0.2 mL', chemistry: 'TaqMan', runFile: '', samples: '', aim: '' },
-      mix: { vol: 20, n: '', over: 10, comps: JSON.parse(JSON.stringify(DEFAULT_MIX)) },
-      cyc: JSON.parse(JSON.stringify(PRESETS.std)), log: [], design: OUTLINE.design, results: '' };
+      meta: { project: '', date: today(), operator: '', instrument: 'QuantStudio 5', block: fmt == 384 ? '384-well' : '96-well 0.1 mL Fast (MicroAmp 4346906)', chemistry: 'TaqMan', passive: 'ROX', runFile: '', samples: '', aim: '' },
+      mix: { vol: DEFAULT_MIXSET.vol, n: '', over: DEFAULT_MIXSET.over, comps: JSON.parse(JSON.stringify(DEFAULT_MIX)) },
+      cyc: JSON.parse(JSON.stringify(PRESETS.fast)), log: [], design: OUTLINE.design, results: '' };
   }
 
   // ---------- state, persistence, undo ----------
@@ -213,7 +216,7 @@
     FIELDS.forEach(f => {
       const el = $('#f_' + f), vals = new Set(list.map(k => (p.wells[k] && p.wells[k][f]) || ''));
       const v = vals.size === 1 ? [...vals][0] : ''; loaded[f] = v; el.value = v;
-      el.placeholder = vals.size > 1 ? 'mixed — leave blank to keep' : (f === 'group' ? 'condition / treatment' : f === 'input' ? 'e.g. 2 µL cDNA 1:10' : '');
+      el.placeholder = vals.size > 1 ? 'mixed — leave blank to keep' : (f === 'group' ? 'condition / treatment' : f === 'input' ? 'e.g. 4 µL CUT&RUN DNA 1:10' : '');
       el.classList.toggle('mixed', vals.size > 1); el.disabled = !list.length;
     });
     ['#apply', '#clearw'].forEach(id => $(id).disabled = !list.length);
@@ -290,7 +293,7 @@
   $('#fmt').addEventListener('change', e => {
     const p = P(), f = +e.target.value, { R, C } = dims(f), out = Object.keys(p.wells).filter(k => { const s = split(k); return s.r >= R || s.c > C; });
     if (out.length && !confirm(`${out.length} filled wells don't fit a ${f}-well plate and will be removed. Continue?`)) { e.target.value = p.fmt; return; }
-    snap(); out.forEach(k => delete p.wells[k]); p.fmt = f; if (/^(96|384)/.test(p.meta.block)) p.meta.block = f == 384 ? '384-well' : '96-well 0.2 mL'; sel.clear(); renderAll(); persist();
+    snap(); out.forEach(k => delete p.wells[k]); p.fmt = f; if (/^(96|384)/.test(p.meta.block)) p.meta.block = f == 384 ? '384-well' : '96-well 0.1 mL Fast (MicroAmp 4346906)'; sel.clear(); renderAll(); persist();
   });
   $('#colorby').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.colorBy = b.dataset.c; document.querySelectorAll('#colorby button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderPlate(); refreshSel(); persist(); });
 
@@ -299,6 +302,7 @@
   [['#m_vol', 'vol'], ['#m_n', 'n'], ['#m_over', 'over']].forEach(([id, k]) => $(id).addEventListener('input', e => { P().mix[k] = e.target.value; renderMix(); persist(); }));
   $('#mix').addEventListener('input', e => { const tr = e.target.closest('tr[data-i]'), f = e.target.dataset.f; if (!tr || !f) return; P().mix.comps[+tr.dataset.i][f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; renderMix(); persist(); });
   $('#mix').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (!b) return; snap(); P().mix.comps.splice(+b.dataset.rm, 1); renderMix(true); persist(); });
+  $('#m_tpl').addEventListener('click', () => { snap(); const m = P().mix; m.vol = DEFAULT_MIXSET.vol; m.over = DEFAULT_MIXSET.over; m.comps = JSON.parse(JSON.stringify(DEFAULT_MIX)); $('#m_vol').value = m.vol; $('#m_over').value = m.over; renderMix(true); persist(); status('Reaction set to the SNAP-ChIP 10 µL recipe (⌘/Ctrl Z to undo)'); });
   $('#m_add').addEventListener('click', () => { P().mix.comps.push({ name: '', stock: '', final: '', vol: 0, inMix: true, lot: '' }); renderMix(true); persist(); });
   $('#m_fill').addEventListener('click', () => {
     const m = P().mix, w = m.comps.find(c => /water/i.test(c.name)); if (!w) return status('Add a component named “water” first');
